@@ -9,3 +9,4 @@ Visual Studio Code with the [Blender Development extension](https://marketplace.
 Guides that might be useful when getting started developing a Blender add-on.
 [Create Simple Blender Addon in 15 Minutes](https://www.youtube.com/watch?v=Y67eCfiqJQU)
 [Setup vscode for blender](https://www.youtube.com/watch?v=bmpKAluHiEc)
+[Naming conventions](https://wiki.blender.org/wiki/Reference/Release_Notes/2.80/Python_API/Addons)
