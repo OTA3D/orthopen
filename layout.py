@@ -1,25 +1,47 @@
 import bpy
 
-""" Setup layout for application. The layout is basically tabs in the 
-left side bar
+""" Setup layout for application
 """
 
 TAB_NAME = "OrthOpen"
 
 
-class TabDefaults:
+class PanelDefaults:
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = TAB_NAME
     bl_options = {'DEFAULT_CLOSED'}
 
-
-class ORTHOPEN_PT_FootSplint(bpy.types.Panel, TabDefaults):
-    bl_label = "Footsplint"
-
-    @classmethod
+    @ classmethod
     def poll(cls, context):
+        """ 
+        Poll determines wether a control should be visible/enabled
+        """
         return True
+
+
+class COMMON_PT_Panel(bpy.types.Panel, PanelDefaults):
+    """
+    Controls shown on top of UI that are always visible
+    """
+    bl_label = "This label is not visible"
+    # This is what makes this visible all the time
+    bl_options = {'HIDE_HEADER'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_decorate = True
+
+        layout.label(text="Common controls")
+        row = layout.row()
+        row.scale_y = 1
+
+        # Import button
+        row.operator("orthopen.import_file")
+
+
+class TAB_PT_FootSplint(bpy.types.Panel, PanelDefaults):
+    bl_label = "Footsplint"
 
     def draw(self, context):
         layout = self.layout
@@ -33,12 +55,8 @@ class ORTHOPEN_PT_FootSplint(bpy.types.Panel, TabDefaults):
         row.operator("orthopen.foot_splint")
 
 
-class ORTHOPEN_PT_Prothesis(bpy.types.Panel, TabDefaults):
+class TAB_PT_Prothesis(bpy.types.Panel, PanelDefaults):
     bl_label = "Prothesis"
-
-    @classmethod
-    def poll(cls, context):
-        return True
 
     def draw(self, context):
         layout = self.layout
@@ -47,8 +65,9 @@ class ORTHOPEN_PT_Prothesis(bpy.types.Panel, TabDefaults):
 
 
 classes = (
-    ORTHOPEN_PT_FootSplint,
-    ORTHOPEN_PT_Prothesis
+    COMMON_PT_Panel,
+    TAB_PT_FootSplint,
+    TAB_PT_Prothesis
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)
