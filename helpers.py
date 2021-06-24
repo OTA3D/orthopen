@@ -2,8 +2,24 @@
 Functions that were needed but couldn't be found in Blender or numpy.
 It is a bit awkward to install packages in Blender, so we avoid that.
 """
+import math
 
+import bpy
+import mathutils
 import numpy as np
+
+
+def set_view_to_xz():
+    """
+    Rotate viewport to show the X-Z plane, and set view to current object
+    """
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            # Rotate so the Z axis points upwards (Y upwards, X rightwards is an identity rotation here)
+            area.spaces.active.region_3d.view_matrix = mathutils.Matrix.Rotation(math.radians(-90), 4, 'X')
+
+            # "Zoom" to the selected object
+            bpy.ops.view3d.view_selected()
 
 
 def inside_polygon(point, polygon):
@@ -50,7 +66,8 @@ def inside_polygon(point, polygon):
 
 
 if __name__ == "__main__":
-    # Demonstration
+    # Demonstration of "point in polygon" functionality
+
     import matplotlib.pyplot as plt
     BOX_SIZE = 1
 

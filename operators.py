@@ -1,8 +1,8 @@
-import bpy
-import bmesh
-from bpy.types import POINTCLOUD_UL_attributes
-import bpy_extras
 import math
+
+import bmesh
+import bpy
+import bpy_extras
 import mathutils
 import numpy as np
 
@@ -11,13 +11,16 @@ from . import helpers
 
 class ORTHOPEN_OT_FootSplint(bpy.types.Operator):
     """
-    Generate a foot splint from a scanned foot. Select vertices to outline the footsplint first.
+    Generate a foot splint from a scanned foot. Select vertices that should outline the footsplint first.
     """
     bl_idname = "orthopen.foot_splint"
     bl_label = "Generate"
 
     @classmethod
     def poll(cls, context):
+        if bpy.context.active_object is None:
+            return False
+
         return bpy.context.active_object.data.total_vert_sel > 2
 
     def execute(self, context):
@@ -55,7 +58,7 @@ class ORTHOPEN_OT_ImportFile(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
         bpy.ops.import_mesh.stl(filepath=self.filepath)
         print(f"Importing '{self.filepath}'")
         # TODO: Rotate the leg
-        # TODO: Flip to X-Z view
+        helpers.set_view_to_xz()
         return {'FINISHED'}
 
 
