@@ -1,5 +1,7 @@
 import bpy
 
+from . import operators
+
 """ Setup layout for application
 """
 
@@ -20,7 +22,7 @@ class PanelDefaults:
         return True
 
 
-class COMMON_PT_Panel(bpy.types.Panel, PanelDefaults):
+class COMMON_PT_panel(bpy.types.Panel, PanelDefaults):
     """
     Controls shown on top of UI that are always visible
     """
@@ -37,10 +39,10 @@ class COMMON_PT_Panel(bpy.types.Panel, PanelDefaults):
         row.scale_y = 1
 
         # Import button
-        row.operator("orthopen.import_file")
+        row.operator(operators.ORTHOPEN_OT_import_file.bl_idname)
 
 
-class TAB_PT_FootSplint(bpy.types.Panel, PanelDefaults):
+class TAB_PT_foot_splint(bpy.types.Panel, PanelDefaults):
     bl_label = "Footsplint"
 
     def draw(self, context):
@@ -52,10 +54,10 @@ class TAB_PT_FootSplint(bpy.types.Panel, PanelDefaults):
         layout.label(text="Generate")
         row = layout.row()
         row.scale_y = 3.0
-        row.operator("orthopen.foot_splint")
+        row.operator(operators.ORTHOPEN_OT_foot_splint.bl_idname)
 
 
-class TAB_PT_Prothesis(bpy.types.Panel, PanelDefaults):
+class TAB_PT_prothesis(bpy.types.Panel, PanelDefaults):
     bl_label = "Prothesis"
 
     def draw(self, context):
@@ -65,9 +67,9 @@ class TAB_PT_Prothesis(bpy.types.Panel, PanelDefaults):
 
 
 classes = (
-    COMMON_PT_Panel,
-    TAB_PT_FootSplint,
-    TAB_PT_Prothesis
+    COMMON_PT_panel,
+    TAB_PT_foot_splint,
+    TAB_PT_prothesis
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)

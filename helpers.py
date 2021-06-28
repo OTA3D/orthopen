@@ -9,6 +9,30 @@ import mathutils
 import numpy as np
 
 
+def mangle_operator_name(class_name: str):
+    """
+    Blender does not use the class name directly to register operators but instead uses a complementary field
+    "bl_idname" which can be different from the class name. To facilitate refactor and maintenance, the "bl_idname" field
+    for all operators should be set using this function which output automatically complies to the naming rules:
+    https://b3d.interplanety.org/en/class-naming-conventions-in-blender-2-8-python-api/
+
+    Args:
+        class_name (str): Class name, complying to Blender conventions. Hint: __qualname__ gives
+        class name without the need to instantiate an object first
+
+    Returns:
+        str : Mangled name
+
+      >>> mangle_operator_name("MYMODULE_OT_My_Operator")
+    mymodule.my_operator
+    """
+    class_name_list = class_name.split("_")
+    if "OT" in class_name_list:
+        return class_name_list[0].lower() + "." + (class_name.split("OT_"))[-1].lower()
+    else:
+        raise ValueError("Only use this for operators, all other 'bl_idname' fields are set automatically")
+
+
 def set_view_to_xz():
     """
     Rotate viewport to show the X-Z plane, and set view to current object

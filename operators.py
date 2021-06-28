@@ -9,11 +9,11 @@ import numpy as np
 from . import helpers
 
 
-class ORTHOPEN_OT_FootSplint(bpy.types.Operator):
+class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
     """
     Generate a foot splint from a scanned foot. Select vertices that should outline the footsplint first.
     """
-    bl_idname = "orthopen.foot_splint"
+    bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Generate"
 
     @classmethod
@@ -46,11 +46,11 @@ class ORTHOPEN_OT_FootSplint(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class ORTHOPEN_OT_ImportFile(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
+class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """
     Opens a dialog for importing 3D scans
     """
-    bl_idname = "orthopen.import_file"
+    bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Import 3D scan"
     filter_glob: bpy.props.StringProperty(default='*.stl;*.STL', options={'HIDDEN'})
 
@@ -63,8 +63,8 @@ class ORTHOPEN_OT_ImportFile(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
 
 
 classes = (
-    ORTHOPEN_OT_ImportFile,
-    ORTHOPEN_OT_FootSplint,
+    ORTHOPEN_OT_import_file,
+    ORTHOPEN_OT_foot_splint,
 )
 register, unregister = bpy.utils.register_classes_factory(classes)
 
