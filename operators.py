@@ -1,3 +1,4 @@
+import copy
 import math
 
 import bmesh
@@ -9,6 +10,130 @@ import numpy as np
 from . import helpers
 
 
+class ORTHOPEN_OT_permanent_modifiers(bpy.types.Operator):
+    """
+    Permanently save any changes made by modifiers to the object mesh.
+    """
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Save changes"
+
+    @classmethod
+    def poll(cls, context):
+        return bpy.context.object.mode != 'EDIT'
+
+    def execute(self, context):
+        # This is an original object. Its data does not have any modifiers applied.
+        if context.active_object is None or context.active_object.type != 'MESH':
+            self.report({'INFO'}, "No active mesh object to get info from")
+            return {'CANCELLED'}
+
+        # Apply all modifiers, such as ankle angle changed by bones
+        # See: https://docs.blender.org/api/current/bpy.types.Depsgraph.html
+        object_with_modifiers = context.active_object.evaluated_get(bpy.context.evaluated_depsgraph_get())
+
+        # Overwrite the old mesh. The modifiers are already applied, so remove these
+        # TODO(parlove@paxec.se): A more sophisticated clear of modifiers is needed
+        context.active_object.data = bpy.data.meshes.new_from_object(object_with_modifiers)
+        context.active_object.modifiers.clear()
+
+        context.collection.objects.update()
+
+        return {'FINISHED'}
+
+
+class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
+    """
+    When in edit mode, mark a vertex that will set a pivot point around which the foot angle can be adjusted.
+    """
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Set pivot point"
+
+    @classmethod
+    def poll(cls, context):
+        try:
+            return bpy.context.active_object.data.total_vert_sel == 1
+        except AttributeError:
+            return False
+
+    def execute(self, context):
+        # We need to switch from 'Edit mode' to 'Object mode' so the selection gets updated
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='EDIT')
+
+        # Remove any previos vertex groups
+        # TODO(parlove@paxec.se): Do something with the names so we do not risk removing user data
+        for vertex_group in (bpy.context.active_object.vertex_groups):
+            if "foot" in vertex_group.name:
+                bpy.context.active_object.vertex_groups.remove(vertex_group)
+
+        foot = bpy.context.active_object.vertex_groups.new(name="foot")
+
+        # The foot will be rotated around the ankle, which we have asked the user to mark
+        selected_verts = [v.co for v in bpy.context.active_object.data.vertices if v.select]
+        assert len(selected_verts) == 1, "Only one vertex can be selected"
+        ankle_point = copy.deepcopy(selected_verts[0])  # Deep copy here is important!
+
+        self._weight_paint(foot, ankle_point)
+
+        self._add_armature(ankle_point)
+
+        # For user convenience, if they pressed the button they probably want to
+        # adjust the foot angle now and that has to be done in pose mode
+        bpy.ops.object.mode_set(mode='POSE')
+
+        return {'FINISHED'}
+
+    def _weight_paint(self, foot, ankle_point):
+        """
+        Add weight paint to the foot vertex group.
+        The weight paint defines how the mesh will deform when coupled with an armature.
+        """
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for vertex in bpy.context.active_object.data.vertices:
+            def extract_xz(vector): return mathutils.Vector((vector.x, 0, vector.z))
+            diff_from_ankle = (extract_xz(vertex.co) - extract_xz(ankle_point))
+
+            X_LIM, Z_LIM = (0.06, 0.05)
+            RADIUS = 0.15
+
+            # Basically a circle around the ankle and then a box. It is imperative
+            # that the mesh is properly aligned, i.e. toes in the X direction
+            if diff_from_ankle.z > Z_LIM:
+                weight = 0
+            elif diff_from_ankle.x > X_LIM:
+                weight = 1
+            else:
+                weight = 1 - (diff_from_ankle.length / RADIUS)**2
+
+            foot.add(index=[vertex.index], weight=np.clip(weight, 0, 1), type='REPLACE')
+
+    def _add_armature(self, ankle_point):
+        """
+        The armature is what enables us to rotate the foot around the ankle.
+        """
+        leg_name = bpy.context.active_object.name
+
+        # Add a bone to the foot
+        bpy.ops.object.armature_add(enter_editmode=False,
+                                    align='VIEW',
+                                    location=bpy.context.active_object.matrix_world @ ankle_point,
+                                    rotation=(0, math.degrees(70), 0))
+
+        bone_name = bpy.context.active_object.name
+        bpy.data.objects[bone_name].scale = (0.1, 0.1, 0.1)
+
+        assert len(bpy.data.objects[bone_name].data.bones) == 1
+
+        # A bone affects a vertex group by having the same name as a vertex group in a child object
+        bpy.data.objects[bone_name].data.bones[0].name = "foot"
+
+        # Parenting the leg to the bone. Order of selection is imperative
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.data.objects[bone_name].select_set(True)
+        bpy.data.objects[leg_name].select_set(True)
+        bpy.ops.object.parent_set(type='ARMATURE')
+
+
 class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
     """
     Generate a foot splint from a scanned foot. Select vertices that should outline the footsplint first.
@@ -16,12 +141,12 @@ class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Generate"
 
-    @classmethod
+    @ classmethod
     def poll(cls, context):
-        if bpy.context.active_object is None:
+        try:
+            return bpy.context.active_object.data.total_vert_sel > 2
+        except AttributeError:
             return False
-
-        return bpy.context.active_object.data.total_vert_sel > 2
 
     def execute(self, context):
 
@@ -63,6 +188,8 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
 
 
 classes = (
+    ORTHOPEN_OT_set_foot_pivot,
+    ORTHOPEN_OT_permanent_modifiers,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_foot_splint,
 )

@@ -42,23 +42,30 @@ class COMMON_PT_panel(bpy.types.Panel, PanelDefaults):
         row.operator(operators.ORTHOPEN_OT_import_file.bl_idname)
 
 
-class TAB_PT_foot_splint(bpy.types.Panel, PanelDefaults):
-    bl_label = "Footsplint"
+class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
+    bl_label = "Foot and leg"
 
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = True
 
-        # Big render button
+        layout.label(text="Adjust foot angle")
+        row = layout.row()
+        row.scale_y = 1.0
+        row.operator(operators.ORTHOPEN_OT_set_foot_pivot.bl_idname)
+        row = layout.row()
+        row.scale_y = 1.0
+        row.operator(operators.ORTHOPEN_OT_permanent_modifiers.bl_idname)
+
         layout.label(text="Generate")
         row = layout.row()
         row.scale_y = 3.0
         row.operator(operators.ORTHOPEN_OT_foot_splint.bl_idname)
 
 
-class TAB_PT_prothesis(bpy.types.Panel, PanelDefaults):
-    bl_label = "Prothesis"
+class TAB_PT_arm_wrist(bpy.types.Panel, PanelDefaults):
+    bl_label = "Arm and wrist"
 
     def draw(self, context):
         layout = self.layout
@@ -68,8 +75,8 @@ class TAB_PT_prothesis(bpy.types.Panel, PanelDefaults):
 
 classes = (
     COMMON_PT_panel,
-    TAB_PT_foot_splint,
-    TAB_PT_prothesis
+    TAB_PT_foot_leg,
+    TAB_PT_arm_wrist
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)
