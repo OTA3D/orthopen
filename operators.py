@@ -12,6 +12,18 @@ from . import helpers
 # If a bpy.types.Object contains this key, we know it is a scan we imported
 _KEY_IMPORTED_SCAN = "imported_3d_scan"
 
+# Key to identify armature managed by this add-on
+_KEY_MANAGED_ARMATURE = "managed_armature"
+
+
+def _clear_managed_armature(object: bpy.types.Object):
+    """
+    Identify and remove managed (automatically generated) armature attached to object
+    """
+    if object.parent is not None:
+        if _KEY_MANAGED_ARMATURE in object.parent.keys():
+            bpy.data.objects.remove(object.parent, do_unlink=True)
+
 
 class ORTHOPEN_OT_permanent_modifiers(bpy.types.Operator):
     """
@@ -48,11 +60,15 @@ class ORTHOPEN_OT_permanent_modifiers(bpy.types.Operator):
         depedency_graph = bpy.context.evaluated_depsgraph_get()
 
         for object in objects_to_permanent:
-            # Overwrite the old mesh with the mesh from modifiers.
+            # Overwrite the old mesh with the mesh from modifiers
             object.data = bpy.data.meshes.new_from_object(object.evaluated_get(depedency_graph))
 
             # The modifiers are already applied implicitly now, so keeping them would apply them twice
             object.modifiers.clear()
+
+            # If we tagged the parent, is likely an foot adjustment armature that will not work after the
+            # modifiers are cleared, and it will probably only be confusing to a user to keep it
+            _clear_managed_armature(object)
 
         context.collection.objects.update()
 
@@ -81,13 +97,11 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.mode_set(mode='EDIT')
 
-        # Remove any previos vertex groups
-        # TODO(parlove@paxec.se): Do something with the names so we do not risk removing user data
-        for vertex_group in (bpy.context.active_object.vertex_groups):
+        for vertex_group in (context.active_object.vertex_groups):
             if self._FOOT_VERTEX_ID in vertex_group.name:
-                bpy.context.active_object.vertex_groups.remove(vertex_group)
+                context.active_object.vertex_groups.remove(vertex_group)
 
-        foot = bpy.context.active_object.vertex_groups.new(name=self._FOOT_VERTEX_ID)
+        foot = context.active_object.vertex_groups.new(name=self._FOOT_VERTEX_ID)
 
         # The foot will be rotated around the ankle, which we have asked the user to mark
         selected_verts = [v.co for v in bpy.context.active_object.data.vertices if v.select]
@@ -96,10 +110,10 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
 
         self._weight_paint(foot, ankle_point)
 
-        self._add_armature(ankle_point)
+        _clear_managed_armature(context.active_object)
+        self._add_armature(ankle_point, foot.name)
 
-        # For user convenience, if they pressed the button they probably want to
-        # adjust the foot angle now and that has to be done in pose mode
+        # The user probably wants to adjust the foot angle now and that has to be done in pose mode
         bpy.ops.object.mode_set(mode='POSE')
 
         return {'FINISHED'}
@@ -128,17 +142,19 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
 
             foot.add(index=[vertex.index], weight=np.clip(weight, 0, 1), type='REPLACE')
 
-    def _add_armature(self, ankle_point: mathutils.Vector):
+    def _add_armature(self, ankle_point: mathutils.Vector, foot_name: str):
         """
         The armature is what enables us to rotate the foot around the ankle.
         """
         leg_name = bpy.context.active_object.name
 
-        # Add a bone to the foot
+        # Add a bone to the foot, keep track that this is something auto-generated
+        old_objects = set(bpy.data.objects)
         bpy.ops.object.armature_add(enter_editmode=False,
                                     align='VIEW',
                                     location=bpy.context.active_object.matrix_world @ ankle_point,
                                     rotation=(0, math.degrees(70), 0))
+        (list(set(bpy.data.objects) - old_objects))[0][_KEY_MANAGED_ARMATURE] = True
 
         bone_name = bpy.context.active_object.name
         bpy.data.objects[bone_name].scale = (0.1, 0.1, 0.1)
@@ -146,7 +162,7 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
         assert len(bpy.data.objects[bone_name].data.bones) == 1
 
         # A bone is linked to a vertex group by having the same name
-        bpy.data.objects[bone_name].data.bones[0].name = self._FOOT_VERTEX_ID
+        bpy.data.objects[bone_name].data.bones[0].name = foot_name
 
         # Parenting the leg to the bone. Order of selection is imperative
         bpy.ops.object.select_all(action='DESELECT')
