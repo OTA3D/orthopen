@@ -48,6 +48,9 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Set pivot point"
 
+    # Used to keep track of the foot vertex group
+    _FOOT_VERTEX_ID = "foot"
+
     @classmethod
     def poll(cls, context):
         try:
@@ -63,10 +66,10 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
         # Remove any previos vertex groups
         # TODO(parlove@paxec.se): Do something with the names so we do not risk removing user data
         for vertex_group in (bpy.context.active_object.vertex_groups):
-            if "foot" in vertex_group.name:
+            if self._FOOT_VERTEX_ID in vertex_group.name:
                 bpy.context.active_object.vertex_groups.remove(vertex_group)
 
-        foot = bpy.context.active_object.vertex_groups.new(name="foot")
+        foot = bpy.context.active_object.vertex_groups.new(name=self._FOOT_VERTEX_ID)
 
         # The foot will be rotated around the ankle, which we have asked the user to mark
         selected_verts = [v.co for v in bpy.context.active_object.data.vertices if v.select]
@@ -83,7 +86,7 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
 
         return {'FINISHED'}
 
-    def _weight_paint(self, foot, ankle_point):
+    def _weight_paint(self, foot: bpy.types.VertexGroup, ankle_point: mathutils.Vector):
         """
         Add weight paint to the foot vertex group.
         The weight paint defines how the mesh will deform when coupled with an armature.
@@ -107,7 +110,7 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
 
             foot.add(index=[vertex.index], weight=np.clip(weight, 0, 1), type='REPLACE')
 
-    def _add_armature(self, ankle_point):
+    def _add_armature(self, ankle_point: mathutils.Vector):
         """
         The armature is what enables us to rotate the foot around the ankle.
         """
@@ -124,14 +127,17 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
 
         assert len(bpy.data.objects[bone_name].data.bones) == 1
 
-        # A bone affects a vertex group by having the same name as a vertex group in a child object
-        bpy.data.objects[bone_name].data.bones[0].name = "foot"
+        # A bone is linked to a vertex group by having the same name
+        bpy.data.objects[bone_name].data.bones[0].name = self._FOOT_VERTEX_ID
 
         # Parenting the leg to the bone. Order of selection is imperative
         bpy.ops.object.select_all(action='DESELECT')
         bpy.data.objects[bone_name].select_set(True)
         bpy.data.objects[leg_name].select_set(True)
         bpy.ops.object.parent_set(type='ARMATURE')
+
+        # User is probably more interested in the armature at this point
+        bpy.data.objects[leg_name].select_set(False)
 
 
 class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
