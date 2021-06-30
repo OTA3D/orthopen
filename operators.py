@@ -9,32 +9,50 @@ import numpy as np
 
 from . import helpers
 
+# If a bpy.types.Object contains this key, we know it is a scan we imported
+_KEY_IMPORTED_SCAN = "imported_3d_scan"
+
 
 class ORTHOPEN_OT_permanent_modifiers(bpy.types.Operator):
     """
-    Permanently save any changes made by modifiers to the object mesh.
+    Permanently apply modifiers (e.g. changed foot angle) to the selected object. Will
+    try to automtically find relevant objects if no object is selected.
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
-    bl_label = "Save changes"
+    bl_label = "Apply changes"
 
     @classmethod
     def poll(cls, context):
-        return bpy.context.object.mode != 'EDIT'
+        try:
+            return bpy.context.object.mode != 'EDIT'
+        except AttributeError:
+            return False
 
     def execute(self, context):
-        # This is an original object. Its data does not have any modifiers applied.
+        # This is an original object, without modifiers, or an object without a mesh such as a bone
         if context.active_object is None or context.active_object.type != 'MESH':
-            self.report({'INFO'}, "No active mesh object to get info from")
-            return {'CANCELLED'}
+            objects_to_permanent = [o for o in bpy.data.objects if _KEY_IMPORTED_SCAN in o.keys()]
+
+            if(len(objects_to_permanent) == 0):
+                self.report({'INFO'}, "Could not find a relevant object to permanent")
+                return {'CANCELLED'}
+        else:
+            objects_to_permanent = [context.active_object]
+
+        self.report(
+            {'INFO'},
+            f"Will permanently apply modifiers to '{','.join([o.name for o in objects_to_permanent])}'")
 
         # Apply all modifiers, such as ankle angle changed by bones
         # See: https://docs.blender.org/api/current/bpy.types.Depsgraph.html
-        object_with_modifiers = context.active_object.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        depedency_graph = bpy.context.evaluated_depsgraph_get()
 
-        # Overwrite the old mesh. The modifiers are already applied, so remove these
-        # TODO(parlove@paxec.se): A more sophisticated clear of modifiers is needed
-        context.active_object.data = bpy.data.meshes.new_from_object(object_with_modifiers)
-        context.active_object.modifiers.clear()
+        for object in objects_to_permanent:
+            # Overwrite the old mesh with the mesh from modifiers.
+            object.data = bpy.data.meshes.new_from_object(object.evaluated_get(depedency_graph))
+
+            # The modifiers are already applied implicitly now, so keeping them would apply them twice
+            object.modifiers.clear()
 
         context.collection.objects.update()
 
@@ -179,15 +197,24 @@ class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
 
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """
-    Opens a dialog for importing 3D scans
+    Opens a dialog for importing 3D scans. Use this instead of Blenders
+    own import function, as this also does some important work behing the scenes.
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Import 3D scan"
     filter_glob: bpy.props.StringProperty(default='*.stl;*.STL', options={'HIDDEN'})
 
     def execute(self, context):
+        # Import using a file opening dialog
+        old_objects = set(context.scene.objects)
         bpy.ops.import_mesh.stl(filepath=self.filepath)
         print(f"Importing '{self.filepath}'")
+
+        # Keep track of what objects we have imported
+        imported_objects = set(context.scene.objects) - old_objects
+        for object in imported_objects:
+            object[_KEY_IMPORTED_SCAN] = True
+
         # TODO: Rotate the leg
         helpers.set_view_to_xz()
         return {'FINISHED'}
