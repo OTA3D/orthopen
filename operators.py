@@ -156,17 +156,16 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
                                     rotation=(0, math.degrees(70), 0))
         (list(set(bpy.data.objects) - old_objects))[0][_KEY_MANAGED_ARMATURE] = True
 
-        bone_name = bpy.context.active_object.name
-        bpy.data.objects[bone_name].scale = (0.1, 0.1, 0.1)
-
-        assert len(bpy.data.objects[bone_name].data.bones) == 1
+        armature_name = bpy.context.active_object.name
+        bpy.data.objects[armature_name].scale = (0.1, 0.1, 0.1)
 
         # A bone is linked to a vertex group by having the same name
-        bpy.data.objects[bone_name].data.bones[0].name = foot_name
+        assert len(bpy.data.objects[armature_name].data.bones) == 1
+        bpy.data.objects[armature_name].data.bones[0].name = foot_name
 
         # Parenting the leg to the bone. Order of selection is imperative
         bpy.ops.object.select_all(action='DESELECT')
-        bpy.data.objects[bone_name].select_set(True)
+        bpy.data.objects[armature_name].select_set(True)
         bpy.data.objects[leg_name].select_set(True)
         bpy.ops.object.parent_set(type='ARMATURE')
 
