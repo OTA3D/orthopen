@@ -61,7 +61,7 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
         layout.label(text="Prothesis cosmetics")
         row = layout.row()
         row.scale_y = 1.0
-        row.operator(operators.ORTHOPEN_OT_leg_prosthesis_cosmetics.bl_idname)
+        row.operator(operators.ORTHOPEN_OT_leg_prosthesis_generate.bl_idname)
 
         layout.label(text="Generate")
         row = layout.row()

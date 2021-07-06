@@ -46,6 +46,24 @@ def set_view_to_xz():
             bpy.ops.view3d.view_selected()
 
 
+def object_size(object: bpy.types.Object):
+    """
+    Calculate the size of an object.
+
+    Args:
+        object (bpy.types.Object): Blender object
+
+    Returns:
+        np.array: Size in x,y,z direction
+    """
+
+    diff = np.amax(np.array(object.bound_box), axis=0) -\
+        np.amin(np.array(object.bound_box), axis=0)
+
+    # The bounding box has to be scaled
+    return diff * np.array(object.scale)
+
+
 def inside_polygon(point, polygon):
     """Check if point is inside polygon. The function will close the polygon,
     i.e. connect the last point to the first.
@@ -97,7 +115,7 @@ if __name__ == "__main__":
 
     # Let first side slope rightwards
     DY_DX = 1
-    polygon = [(x, DY_DX*x) for x in np.arange(start=0, stop=BOX_SIZE, step=0.1)]
+    polygon = [(x, DY_DX * x) for x in np.arange(start=0, stop=BOX_SIZE, step=0.1)]
 
     # Add rightside corners
     polygon += [(BOX_SIZE, BOX_SIZE), (BOX_SIZE, 0)]
@@ -105,7 +123,7 @@ if __name__ == "__main__":
     # Generate 2D point cloud
     N_POINTS = 1000
     CLOUD_SIZE = BOX_SIZE * 2
-    points = np.random.rand(N_POINTS, 2) * CLOUD_SIZE - np.array([BOX_SIZE/2, BOX_SIZE/2])
+    points = np.random.rand(N_POINTS, 2) * CLOUD_SIZE - np.array([BOX_SIZE / 2, BOX_SIZE / 2])
 
     inside = np.array([inside_polygon(points[i, :], polygon) for i in range(N_POINTS)])
 

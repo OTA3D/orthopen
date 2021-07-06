@@ -205,30 +205,89 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
         return bpy.data.objects[armature_name]
 
 
-class ORTHOPEN_OT_leg_prosthesis_cosmetics(bpy.types.Operator):
+class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
     """
     Generate a proposal for leg prosthesis cosmetics
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Generate cosmetics"
 
+    max_circumference: bpy.props.FloatProperty(
+        name="Calf circumference (max)",
+        description="The largest circumference around the calf",
+        unit="LENGTH",
+        default=0.35)
+
+    height: bpy.props.FloatProperty(name="Cosmetics total height",
+                                    description="The extent of the cosmetics, "
+                                    "from top to bottom",
+                                    unit="LENGTH",
+                                    default=0.2)
+
+    clip_position_z: bpy.props.FloatProperty(name="Clip start height",
+                                             description="The lowest point of the fastening clips, measured relative to"
+                                             " the lowest point of the prosthesis cosmetics",
+                                             unit="LENGTH",
+                                             default=0.1)
+
     @ classmethod
     def poll(cls, context):
         return True
 
     def execute(self, context):
-        file_path = Path(__file__).parent.joinpath("assets", "leg_prosthesis.blend")
 
-        BLEND_PATH = "Object"
-        OBJECT_NAME = "prosthesis_cosmetics"
+        objects = self._import_from_assets_folder()
 
-        bpy.ops.wm.append(
-            filepath=str(file_path.joinpath(BLEND_PATH, OBJECT_NAME)),
-            directory=str(file_path.joinpath(BLEND_PATH)),
-            filename=OBJECT_NAME
-        )
+        self._adjust_scalings_and_sizes(objects)
+
+        # UI updates
+        bpy.ops.object.select_all(action="DESELECT")
+        objects["prosthesis_cosmetics"].select_set(True)
+        helpers.set_view_to_xz()
 
         return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+    def _adjust_scalings_and_sizes(self, objects):
+        # Adjust calf size. Approximate the calf as as perfectly circular, and set the bounding box
+        # to a square that would circumvent this circle
+        X_Y_MAX = self.max_circumference / np.pi
+        target_size = np.array([X_Y_MAX, X_Y_MAX, self.height])
+        current_size = helpers.object_size(objects["prosthesis_cosmetics"])
+        objects["prosthesis_cosmetics"].scale = list(target_size / current_size)
+
+        # Get smallest z-coordinate of the object bounding box
+        def get_z_min(object): return (np.amin(np.array(object.bound_box), axis=0))[2] * object.scale[2]
+
+        # Adjust clip bounding box so that its bottom is above the calf bounding box bottom according to settings
+        objects["clip"].matrix_world.translation += mathutils.Vector((0,
+                                                                      0,
+                                                                      self.clip_position_z +
+                                                                      get_z_min(objects["prosthesis_cosmetics"]) -
+                                                                      get_z_min(objects["clip"])))
+
+    def _import_from_assets_folder(self):
+        # Import objects from file with assets
+        FILE_PATH = Path(__file__).parent.joinpath("assets", "leg_prosthesis.blend")
+        BLEND_PATH = "Object"
+        objects = dict()
+        for object_name in ["prosthesis_cosmetics", "clip"]:
+            old_objects = set(bpy.data.objects)
+            bpy.ops.wm.append(
+                filepath=str(FILE_PATH.joinpath(BLEND_PATH, object_name)),
+                directory=str(FILE_PATH.joinpath(BLEND_PATH)),
+                filename=object_name
+            )
+            imported_object = list(set(bpy.data.objects) - old_objects).pop()
+
+            # Reset any transforms
+            imported_object.matrix_world = mathutils.Matrix()
+
+            # Save a reference so we can find the object
+            objects[object_name] = imported_object
+        return objects
 
 
 class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
@@ -298,7 +357,7 @@ classes = (
     ORTHOPEN_OT_permanent_modifiers,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_foot_splint,
-    ORTHOPEN_OT_leg_prosthesis_cosmetics
+    ORTHOPEN_OT_leg_prosthesis_generate,
 )
 register, unregister = bpy.utils.register_classes_factory(classes)
 
