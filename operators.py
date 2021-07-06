@@ -1,5 +1,6 @@
 import copy
 import math
+from pathlib import Path
 
 import bmesh
 import bpy
@@ -204,6 +205,32 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
         return bpy.data.objects[armature_name]
 
 
+class ORTHOPEN_OT_leg_prosthesis_cosmetics(bpy.types.Operator):
+    """
+    Generate a proposal for leg prosthesis cosmetics
+    """
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Generate cosmetics"
+
+    @ classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        file_path = Path(__file__).parent.joinpath("assets", "leg_prosthesis.blend")
+
+        BLEND_PATH = "Object"
+        OBJECT_NAME = "prosthesis_cosmetics"
+
+        bpy.ops.wm.append(
+            filepath=str(file_path.joinpath(BLEND_PATH, OBJECT_NAME)),
+            directory=str(file_path.joinpath(BLEND_PATH)),
+            filename=OBJECT_NAME
+        )
+
+        return {'FINISHED'}
+
+
 class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
     """
     Generate a foot splint from a scanned foot. Select vertices that should outline the footsplint first.
@@ -271,6 +298,7 @@ classes = (
     ORTHOPEN_OT_permanent_modifiers,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_foot_splint,
+    ORTHOPEN_OT_leg_prosthesis_cosmetics
 )
 register, unregister = bpy.utils.register_classes_factory(classes)
 
