@@ -1,13 +1,13 @@
 bl_info = {
-    "name": "Simple operator",
+    "name": "OrthOpen",
     "author": "",
-    "version": (1, 0),
+    "version": (0, 0),
     "blender": (2, 80, 0),
-    "location": "View3D > Add > Mesh > New Object",
-    "description": "Initial test",
-    "warning": "",
-    "doc_url": "",
-    "category": "Add Mesh",
+    "location": "View3D->Sidebar",
+    "description": "Tools for facilitating the design of orthopaedic aids.",
+    "warning": "This is an alpha version",
+    "doc_url": "https://github.com/OTA3D/orthopen",
+    "category": "Object",
 }
 
 import bpy  # noqa
