@@ -35,7 +35,7 @@ def mangle_operator_name(class_name: str):
 
 def set_view_to_xz():
     """
-    Rotate viewport to show the X-Z plane, and set view to current object
+    Rotate viewport to show the X-Z plane (front orthographic), and set view to current object
     """
     for area in bpy.context.screen.areas:
         if area.type == 'VIEW_3D':
@@ -44,6 +44,11 @@ def set_view_to_xz():
 
             # "Zoom" to the selected object
             bpy.ops.view3d.view_selected()
+
+            # Set view to front orthograpic
+            override = bpy.context.copy()
+            override['area'] = area
+            bpy.ops.view3d.view_axis(override, type='FRONT')
 
 
 def object_size(object: bpy.types.Object):
