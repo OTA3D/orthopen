@@ -242,7 +242,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         # UI updates
         bpy.ops.object.select_all(action="DESELECT")
-        objects["prosthesis_cosmetics"].select_set(True)
+        objects["cosmetics_main"].select_set(True)
         helpers.set_view_to_xz()
 
         return {'FINISHED'}
@@ -251,42 +251,44 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def _adjust_scalings_and_sizes(self, objects):
+
         # Adjust calf size. Approximate the calf as as perfectly circular, and set the bounding box
-        # to a square that would circumvent this circle
+        # to a square that would circumvent this circle.
+        # The calf if currently halved long the X-axis, so we have do double the bounding box there
+        current_size = helpers.object_size(objects["cosmetics_main"]) * np.array((2, 1, 1))
         X_Y_MAX = self.max_circumference / np.pi
         target_size = np.array([X_Y_MAX, X_Y_MAX, self.height])
-        current_size = helpers.object_size(objects["prosthesis_cosmetics"])
-        objects["prosthesis_cosmetics"].scale = list(target_size / current_size)
+        objects["cosmetics_main"].scale = list(target_size / current_size)
 
         # Get smallest z-coordinate of the object bounding box
         def get_z_min(object): return (np.amin(np.array(object.bound_box), axis=0))[2] * object.scale[2]
 
-        # Adjust clip bounding box so that its bottom is above the calf bounding box bottom according to settings
+        # Adjust fastening clip bounding box so that its bottom placed in relation to the calf
+        # bounding box bottom according to settings
         objects["clip"].matrix_world.translation += mathutils.Vector((0,
                                                                       0,
                                                                       self.clip_position_z +
-                                                                      get_z_min(objects["prosthesis_cosmetics"]) -
+                                                                      get_z_min(objects["cosmetics_main"]) -
                                                                       get_z_min(objects["clip"])))
 
     def _import_from_assets_folder(self):
         # Import objects from file with assets
         FILE_PATH = Path(__file__).parent.joinpath("assets", "leg_prosthesis.blend")
-        BLEND_PATH = "Object"
+
+        with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
+            # Here .objects are strings, but then the "with" context is exited
+            # they will be replaced by corresponding real objects
+            data_to.objects = data_from.objects
+
+        # Link the to the scene.
         objects = dict()
-        for object_name in ["prosthesis_cosmetics", "clip"]:
-            old_objects = set(bpy.data.objects)
-            bpy.ops.wm.append(
-                filepath=str(FILE_PATH.joinpath(BLEND_PATH, object_name)),
-                directory=str(FILE_PATH.joinpath(BLEND_PATH)),
-                filename=object_name
-            )
-            imported_object = list(set(bpy.data.objects) - old_objects).pop()
+        for obj in data_to.objects:
+            if obj is not None:
+                # We save a local reference in a dictionary to later find the object
+                # if Blender renames them at link
+                objects[obj.name] = obj
+                bpy.context.scene.collection.objects.link(obj)
 
-            # Reset any transforms
-            imported_object.matrix_world = mathutils.Matrix()
-
-            # Save a reference so we can find the object
-            objects[object_name] = imported_object
         return objects
 
 
