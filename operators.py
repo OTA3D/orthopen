@@ -252,13 +252,16 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
     def _adjust_scalings_and_sizes(self, objects):
 
-        # Adjust calf size. Approximate the calf as as perfectly circular, and set the bounding box
+        # Approximate the calf as as perfectly circular, and set the bounding box
         # to a square that would circumvent this circle.
-        # The calf if currently halved long the X-axis, so we have do double the bounding box there
-        current_size = helpers.object_size(objects["cosmetics_main"]) * np.array((2, 1, 1))
         X_Y_MAX = self.max_circumference / np.pi
         target_size = np.array([X_Y_MAX, X_Y_MAX, self.height])
-        objects["cosmetics_main"].scale = list(target_size / current_size)
+
+        # The calf if currently halved long the X-axis, so we have to double the bounding box there
+        current_size = helpers.object_size(objects["cosmetics_main"]) * np.array((2, 1, 1))
+
+        # Scale calf size up to target size
+        objects["cosmetics_main"].scale = list(np.array(objects["cosmetics_main"].scale) * target_size / current_size)
 
         # Get smallest z-coordinate of the object bounding box
         def get_z_min(object): return (np.amin(np.array(object.bound_box), axis=0))[2] * object.scale[2]
