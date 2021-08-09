@@ -236,13 +236,13 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
     def execute(self, context):
 
-        objects = self._import_from_assets_folder()
+        cosmetics_main, fastening_clip = self._import_from_assets_folder()
 
-        self._adjust_scalings_and_sizes(objects)
+        self._adjust_scalings_and_sizes(cosmetics_main, fastening_clip)
 
         # UI updates
         bpy.ops.object.select_all(action="DESELECT")
-        objects["cosmetics_main"].select_set(True)
+        cosmetics_main.select_set(True)
         helpers.set_view_to_xz()
 
         return {'FINISHED'}
@@ -250,7 +250,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
-    def _adjust_scalings_and_sizes(self, objects):
+    def _adjust_scalings_and_sizes(self, cosmetics_main, fastening_clip):
 
         # Approximate the calf as as perfectly circular, and set the bounding box
         # to a square that would circumvent this circle.
@@ -258,21 +258,22 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         target_size = np.array([X_Y_MAX, X_Y_MAX, self.height])
 
         # The calf if currently halved long the X-axis, so we have to double the bounding box there
-        current_size = helpers.object_size(objects["cosmetics_main"]) * np.array((2, 1, 1))
+        current_size = helpers.object_size(cosmetics_main) * np.array((2, 1, 1))
 
         # Scale calf size up to target size
-        objects["cosmetics_main"].scale = list(np.array(objects["cosmetics_main"].scale) * target_size / current_size)
+        cosmetics_main.scale = list(np.array(cosmetics_main.scale) * target_size / current_size)
 
         # Get smallest z-coordinate of the object bounding box
         def get_z_min(object): return (np.amin(np.array(object.bound_box), axis=0))[2] * object.scale[2]
 
         # Adjust fastening clip bounding box so that its bottom placed in relation to the calf
-        # bounding box bottom according to settings
-        objects["clip"].matrix_world.translation += mathutils.Vector((0,
-                                                                      0,
-                                                                      self.clip_position_z +
-                                                                      get_z_min(objects["cosmetics_main"]) -
-                                                                      get_z_min(objects["clip"])))
+        # bounding box bottom according to settings.
+        # TODO(parlove@paxec.se): Make this more robust, this should fail if parts have non-unitary scaling etc
+        fastening_clip.matrix_world.translation += mathutils.Vector((0,
+                                                                     0,
+                                                                     self.clip_position_z +
+                                                                     get_z_min(cosmetics_main) -
+                                                                     get_z_min(fastening_clip)))
 
     def _import_from_assets_folder(self):
         # Import objects from file with assets
@@ -283,16 +284,22 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
             # they will be replaced by corresponding real objects
             data_to.objects = data_from.objects
 
-        # Link the to the scene.
-        objects = dict()
+        # Link all objects to the scene and save a reference to the objects of special interest
         for obj in data_to.objects:
             if obj is not None:
-                # We save a local reference in a dictionary to later find the object
-                # if Blender renames them at link
-                objects[obj.name] = obj
+                # Blender might have renamed the objects to "clip_001" etc, hence we use a pattern match instead
+                # of direct string comparison
+                if "cosmetics_main" in obj.name:
+                    cosmetics_main = obj
+                if "clip" in obj.name:
+                    fastening_clip = obj
+
                 bpy.context.scene.collection.objects.link(obj)
 
-        return objects
+        assert "cosmetics_main" in locals() \
+            and "fastening_clip" in locals(), f"Required parts not found in '{FILE_PATH}'"
+
+        return cosmetics_main, fastening_clip
 
 
 class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
