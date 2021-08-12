@@ -230,25 +230,91 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
                                              unit="LENGTH",
                                              default=0.1)
 
+    use_interactive_placement: bpy.props.BoolProperty(name="Interactive clip placement",
+                                                      description="After clicking 'OK' below, click a point on the prosthesis tube where"
+                                                      " the fastening clip should be placed",
+                                                      default=True)
+
     @ classmethod
     def poll(cls, context):
-        return True
+        try:
+            return bpy.context.object.mode == 'OBJECT'
+        except AttributeError:
+            return False
 
     def execute(self, context):
+        if self.use_interactive_placement:
+            context.window_manager.modal_handler_add(self)
+            return {'RUNNING_MODAL'}
 
-        cosmetics_main, fastening_clip = self._import_from_assets_folder()
-
-        self._adjust_scalings_and_sizes(cosmetics_main, fastening_clip)
-
-        # UI updates
-        bpy.ops.object.select_all(action="DESELECT")
-        cosmetics_main.select_set(True)
-        helpers.set_view_to_xz()
-
+        self._main()
         return {'FINISHED'}
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
+
+    def modal(self, context, event):
+        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
+            # Allow navigation
+            return {'PASS_THROUGH'}
+        elif event.type == 'LEFTMOUSE':
+            clamp_origin = self._determine_clamp_origin(mouse_coords=(event.mouse_region_x, event.mouse_region_y))
+            if clamp_origin is None:
+                self.report(
+                    {'INFO'},
+                    "Could not find a tube for the fastening clamp. Will place prosthesis at default location.")
+            self._main(clamp_origin)
+            return {'FINISHED'}
+        elif event.type in {'RIGHTMOUSE', 'ESC'}:
+            return {'CANCELLED'}
+
+        return {'RUNNING_MODAL'}
+
+    def _main(self, clamp_origin=None):
+        cosmetics_main, fastening_clip = self._import_from_assets_folder()
+
+        self._adjust_scalings_and_sizes(cosmetics_main, fastening_clip)
+
+        if clamp_origin is not None:
+            # Adjust clamp by moving its parent, so all parts move along.
+            # TODO(parlove@paxec.se): Placement becomes a bit off in the Z direction, even though
+            # clamp_origin is correctly determined
+            cosmetics_main.matrix_world.translation = mathutils.Vector(list(clamp_origin))
+            - (fastening_clip.matrix_world.translation - cosmetics_main.matrix_world.translation)
+
+         # UI updates
+        bpy.ops.object.select_all(action="DESELECT")
+        cosmetics_main.select_set(True)
+        helpers.set_view_to_xz()
+
+    def _determine_clamp_origin(self, mouse_coords):
+        """
+        Determine an origin of the fastening clamp based on current mouse coordinates. This
+        origin should make the clamp align well with the prosthesis tube.
+        """
+        object, intersection_obj = helpers.mouse_ray_cast(bpy.context, mouse_coords=mouse_coords)
+
+        if object is None:
+            return None
+
+        # Convert from object to world coordinates
+        intersection_world = object.matrix_world @ intersection_obj
+        vertices_world = np.array([[v.co.x, v.co.y, v.co.z, 1]
+                                   for v in object.data.vertices]) @ np.array(list(object.matrix_world)).T
+
+        # Assume the prosthesis tube is perfectly cylindrical and parallel to the world Z-axis. Select
+        # vertices symmetrically around the ray cast intersection.
+        squared_distances_z = (vertices_world[:, 2] - intersection_world[2])**2
+        Z_SELECTION_METERS = 0.015
+        selected_vertices = vertices_world[squared_distances_z < Z_SELECTION_METERS**2, :3]
+
+        # Likely to happen for a tube created in blender, these have few vertices along their length per default
+        MINIMUM_VERTICES_FOR_VALID_RESULT = 5
+        if selected_vertices.shape[0] < MINIMUM_VERTICES_FOR_VALID_RESULT:
+            return None
+
+        # This should be the center point of a vertical tube section
+        return np.mean(selected_vertices, axis=0)
 
     def _adjust_scalings_and_sizes(self, cosmetics_main, fastening_clip):
 

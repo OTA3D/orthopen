@@ -5,6 +5,7 @@ It is a bit awkward to install packages in Blender, so we avoid that.
 import math
 
 import bpy
+from bpy_extras import view3d_utils
 import mathutils
 import numpy as np
 
@@ -31,6 +32,58 @@ def mangle_operator_name(class_name: str):
         return class_name_list[0].lower() + "." + (class_name.split("OT_"))[-1].lower()
     else:
         raise ValueError("Only use this for operators, all other 'bl_idname' fields are set automatically")
+
+
+def mouse_ray_cast(context: bpy.types.Context, mouse_coords):
+    """
+    Find the object that appears to be in front of the mouse cursor.
+
+    Based on template 'Operator Modal View3D raycast'
+
+    Args:
+        context (bpy.types.Context): Current windowmanager context
+        mouse_coords (tuple): Current mouse cursor position
+
+    Returns:
+        tuple: (object, intersection point in object coordinate system) if an object is found,
+                else (None, None)
+    """
+    # Get the ray from the viewport and mouse
+    view_vector = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, mouse_coords)
+    ray_origin_world = view3d_utils.region_2d_to_origin_3d(context.region, context.region_data, mouse_coords)
+    ray_target_world = ray_origin_world + view_vector
+
+    # Loop through all objects, cast the same ray, and see if the ray intersects the object
+    best_length_squared = -1.0
+    best_obj = None
+    for object in context.evaluated_depsgraph_get().object_instances:
+        # We have to treat instances and copies a bit differently
+        if object.is_instance:
+            obj, matrix_world = (object.instance_object, object.matrix_world.copy())
+        else:
+            obj, matrix_world = (object.object, object.object.matrix_world.copy())
+
+        if obj.type == 'MESH':
+            # Rays are cast in the object coordinate system, so we need to transform these vectors
+            ray_origin_obj = matrix_world.inverted() @ ray_origin_world
+            ray_target_obj = matrix_world.inverted() @ ray_target_world
+
+            ray_direction_obj = ray_target_obj - ray_origin_obj
+            hit, intersection_point, _, _ = obj.ray_cast(ray_origin_obj, ray_direction_obj)
+
+            if hit:
+                length_squared = (intersection_point - ray_origin_obj).length_squared
+                # TODO(parlove@paxec.se): This criteria is not great, we sometimes
+                # get objects not perceived to be directly in front of the mouse pointer
+                if best_obj is None or length_squared < best_length_squared:
+                    best_obj_intersection_point = intersection_point
+                    best_length_squared = length_squared
+                    best_obj = obj
+
+    if best_obj is None:
+        return None, None
+
+    return best_obj.original, best_obj_intersection_point
 
 
 def set_view_to_xz():

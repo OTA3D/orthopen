@@ -35,10 +35,10 @@ class COMMON_PT_panel(bpy.types.Panel, PanelDefaults):
         layout.use_property_decorate = True
 
         layout.label(text="Common controls")
-        row = layout.row()
-        row.scale_y = 1
 
         # Import button
+        row = layout.row()
+        row.scale_y = 1
         row.operator(operators.ORTHOPEN_OT_import_file.bl_idname)
 
 
