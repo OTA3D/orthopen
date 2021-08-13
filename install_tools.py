@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """ Helper functions for installing this multifile add-on in Blender """
 import argparse
+from datetime import datetime
 import os
 import re
 import shutil
@@ -43,7 +44,7 @@ def build(output_path: str = ""):
     file_paths = [path for path in Path("").rglob('*.*') if ignore_regex.match(str(path)) is None]
 
     # Write to zip
-    zip_path = build_path.joinpath(f'{addon_name}.zip')
+    zip_path = build_path.joinpath(f"{addon_name}_{datetime.today().strftime('%Y_%m_%d')}.zip")
     print(f"Writing output to '{zip_path}'")
     with ZipFile(zip_path, 'w') as zip_file:
         for path in file_paths:
