@@ -212,23 +212,23 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Generate cosmetics"
 
-    max_circumference: bpy.props.FloatProperty(
+    set_max_circumference: bpy.props.FloatProperty(
         name="Calf circumference (max)",
         description="The largest circumference around the calf",
         unit="LENGTH",
         default=0.35)
 
-    height: bpy.props.FloatProperty(name="Cosmetics total height",
-                                    description="The extent of the cosmetics, "
-                                    "from top to bottom",
-                                    unit="LENGTH",
-                                    default=0.2)
+    set_height: bpy.props.FloatProperty(name="Cosmetics total height",
+                                        description="The extent of the cosmetics, "
+                                        "from top to bottom",
+                                        unit="LENGTH",
+                                        default=0.2)
 
-    clip_position_z: bpy.props.FloatProperty(name="Clip start height",
-                                             description="The lowest point of the fastening clips, measured relative to"
-                                             " the lowest point of the prosthesis cosmetics",
-                                             unit="LENGTH",
-                                             default=0.1)
+    set_clip_position_z: bpy.props.FloatProperty(name="Clip start height",
+                                                 description="The lowest point of the fastening clips, measured relative to"
+                                                 " the lowest point of the prosthesis cosmetics",
+                                                 unit="LENGTH",
+                                                 default=0.1)
 
     use_interactive_placement: bpy.props.BoolProperty(name="Interactive clip placement",
                                                       description="After clicking 'OK' below, click a point on the prosthesis tube where"
@@ -273,16 +273,28 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
     def _main(self, clamp_origin=None):
         cosmetics_main, fastening_clip = self._import_from_assets_folder()
 
-        self._adjust_scalings_and_sizes(cosmetics_main, fastening_clip)
-
         if clamp_origin is not None:
-            # Adjust clamp by moving its parent, so all parts move along.
-            # TODO(parlove@paxec.se): Placement becomes a bit off in the Z direction, even though
-            # clamp_origin is correctly determined
+            # Adjust clamp by moving its parent, so all parts move along. This statement must come before the
+            # dimension change, for some reason, else the dimension change is overriden
+            # TODO(parlove@paxec.se):
+            # - Placement becomes a bit off in the Z direction, even though clamp_origin is correctly determined
             cosmetics_main.matrix_world.translation = mathutils.Vector(list(clamp_origin))
             - (fastening_clip.matrix_world.translation - cosmetics_main.matrix_world.translation)
 
-         # UI updates
+        # Approximate the calf as as perfectly circular, and set the bounding box to a square that would circumvent this circle. The calf is a half
+        # circle along the X-axis, so halve that measurement
+        X_Y_MAX = self.set_max_circumference / np.pi
+        cosmetics_main.dimensions = (X_Y_MAX / 2, X_Y_MAX, self.set_height)
+
+        # Smallest z-coordinate of the object bounding box
+        def get_z_min(object): return (np.amin(np.array(object.bound_box), axis=0))[2] * object.scale[2]
+
+        # Adjust fastening clip bounding box so that its bottom placed in relation
+        # to the calf bounding box bottom according to settings.
+        fastening_clip.matrix_world.translation[2] += self.set_clip_position_z + \
+            get_z_min(cosmetics_main) - get_z_min(fastening_clip)
+
+        # UI updates
         bpy.ops.object.select_all(action="DESELECT")
         cosmetics_main.select_set(True)
         helpers.set_view_to_xz()
@@ -315,31 +327,6 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         # This should be the center point of a vertical tube section
         return np.mean(selected_vertices, axis=0)
-
-    def _adjust_scalings_and_sizes(self, cosmetics_main, fastening_clip):
-
-        # Approximate the calf as as perfectly circular, and set the bounding box
-        # to a square that would circumvent this circle.
-        X_Y_MAX = self.max_circumference / np.pi
-        target_size = np.array([X_Y_MAX, X_Y_MAX, self.height])
-
-        # The calf if currently halved long the X-axis, so we have to double the bounding box there
-        current_size = helpers.object_size(cosmetics_main) * np.array((2, 1, 1))
-
-        # Scale calf size up to target size
-        cosmetics_main.scale = list(np.array(cosmetics_main.scale) * target_size / current_size)
-
-        # Get smallest z-coordinate of the object bounding box
-        def get_z_min(object): return (np.amin(np.array(object.bound_box), axis=0))[2] * object.scale[2]
-
-        # Adjust fastening clip bounding box so that its bottom placed in relation to the calf
-        # bounding box bottom according to settings.
-        # TODO(parlove@paxec.se): Make this more robust, this should fail if parts have non-unitary scaling etc
-        fastening_clip.matrix_world.translation += mathutils.Vector((0,
-                                                                     0,
-                                                                     self.clip_position_z +
-                                                                     get_z_min(cosmetics_main) -
-                                                                     get_z_min(fastening_clip)))
 
     def _import_from_assets_folder(self):
         # Import objects from file with assets
