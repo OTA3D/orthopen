@@ -370,6 +370,49 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         return cosmetics_main, fastening_clip
 
 
+class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
+    """
+    Interactively generate a pad that sticks to surfaces. Hover the object where it should be centered. Can be used e.g.
+    for ensuring clearance between an ankle and a foot splint.
+    """
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Generate pad"
+
+    @ classmethod
+    def poll(cls, context):
+        try:
+            return bpy.context.object.mode == 'OBJECT'
+        except AttributeError:
+            return False
+
+    def invoke(self, context, event):
+        context.window_manager.modal_handler_add(self)
+
+        # Import pad object
+        old_objects = set(context.scene.objects)
+        bpy.ops.mesh.primitive_cylinder_add(radius=1, depth=2, enter_editmode=False, align='WORLD',
+                                            location=(0, 0, 0), scale=(0.02, 0.02, 0.005))
+        self.pad = (list(set(context.scene.objects) - old_objects))[0]
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
+            # Allow navigation
+            return {'PASS_THROUGH'}
+        elif event.type == 'LEFTMOUSE':
+            return {'FINISHED'}
+        if event.type == 'MOUSEMOVE':
+            intersected_object, intersection_point = helpers.mouse_ray_cast(
+                bpy.context, (event.mouse_region_x, event.mouse_region_y))
+
+            if intersection_point is not None:
+                self.pad.matrix_world.translation = intersected_object.matrix_world @ intersection_point
+        elif event.type in {'RIGHTMOUSE', 'ESC'}:
+            return {'CANCELLED'}
+
+        return {'RUNNING_MODAL'}
+
+
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """
     Opens a dialog for importing 3D scans. Use this instead of Blenders
@@ -396,12 +439,11 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
 
 
 classes = (
-    ORTHOPEN_OT_set_foot_pivot,
-    ORTHOPEN_OT_permanent_modifiers,
+    ORTHOPEN_OT_generate_pad,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_leg_prosthesis_generate,
-
-
+    ORTHOPEN_OT_permanent_modifiers,
+    ORTHOPEN_OT_set_foot_pivot,
 )
 register, unregister = bpy.utils.register_classes_factory(classes)
 
