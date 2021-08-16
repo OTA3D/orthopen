@@ -224,7 +224,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
                                         default=0.2)
 
     set_clip_position_z: bpy.props.FloatProperty(name="Clip start height",
-                                                 description="The lowest point of the fastening clips, measured relative to"
+                                                 description="The center point of the fastening clip measured relative to"
                                                  " the lowest point of the prosthesis cosmetics",
                                                  unit="LENGTH",
                                                  default=0.1)
@@ -269,29 +269,39 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         return {'RUNNING_MODAL'}
 
-    def _main(self, clamp_origin=None):
+    def _main(self, set_clamp_origin=None):
         cosmetics_main, fastening_clip = self._import_from_assets_folder()
 
-        if clamp_origin is not None:
-            # Adjust clamp by moving its parent, so all parts move along. This statement must come before the
-            # dimension change, for some reason, else the dimension change is overriden
-            # TODO(parlove@paxec.se):
-            # - Placement becomes a bit off in the Z direction, even though clamp_origin is correctly determined
-            cosmetics_main.matrix_world.translation = mathutils.Vector(list(clamp_origin))
-            - (fastening_clip.matrix_world.translation - cosmetics_main.matrix_world.translation)
+        # The bounding box is defined in object coordinates, and defines the mesh size with no scale applied
+        cosmetics_main_mesh_size = np.amax(np.array(cosmetics_main.bound_box), axis=0) - \
+            np.amin(np.array(cosmetics_main.bound_box), axis=0)
 
-        # Approximate the calf as as perfectly circular, and set the bounding box to a square that would circumvent this circle. The calf is a half
-        # circle along the X-axis, so halve that measurement
-        X_Y_MAX = self.set_max_circumference / np.pi
-        cosmetics_main.dimensions = (X_Y_MAX / 2, X_Y_MAX, self.set_height)
+        # Approximate the calf as as perfectly circular, and set the target bounding box
+        # to a square that would circumvent this circle
+        x_y_target_size = self.set_max_circumference / np.pi
 
-        # Smallest z-coordinate of the object bounding box
-        def get_z_min(object): return (np.amin(np.array(object.bound_box), axis=0))[2] * object.scale[2]
+        # The calf is a half circle along the X-axis, so halve that measurement
+        cosmetics_main_target_scale = np.array([x_y_target_size / 2, x_y_target_size, self.set_height])\
+            / cosmetics_main_mesh_size
 
-        # Adjust fastening clip bounding box so that its bottom placed in relation
-        # to the calf bounding box bottom according to settings.
-        fastening_clip.matrix_world.translation[2] += self.set_clip_position_z + \
-            get_z_min(cosmetics_main) - get_z_min(fastening_clip)
+        if set_clamp_origin is None:
+            set_clamp_origin = np.array(fastening_clip.matrix_world.translation)
+        fastening_clip.matrix_world.translation = mathutils.Vector(list(set_clamp_origin))
+
+        # This is true if the body is not rotated, and no modifiers are applied
+        cosmetics_main_origin_to_z_min = (np.amin(np.array(cosmetics_main.bound_box), axis=0))[2]\
+            * cosmetics_main_target_scale[2]
+
+        # Set the position of cosmetics main according to the user inputs. Other parts are parented and follow along
+        cosmetics_main_translation = set_clamp_origin + \
+            np.array([0, 0, -self.set_clip_position_z - cosmetics_main_origin_to_z_min])
+
+        # By setting scale and position directly in matrix_world "atomically" there is less risk of
+        # any of these properties getting lost between Blenders internal update cycles
+        mat = np.eye(4)
+        mat[:3, :3] = np.diag(cosmetics_main_target_scale)
+        mat[:3, 3] = cosmetics_main_translation
+        cosmetics_main.matrix_world = mathutils.Matrix(list(mat))
 
         # UI updates
         bpy.ops.object.select_all(action="DESELECT")
@@ -351,6 +361,12 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         assert "cosmetics_main" in locals() \
             and "fastening_clip" in locals(), f"Required parts not found in '{FILE_PATH}'"
 
+        # In following code, it is assumed that these objects are not rotated
+        def not_rotated(object): return np.linalg.norm(np.array(object.matrix_world.to_quaternion()) -
+                                                       np.array(mathutils.Quaternion())) < 1.E-7
+        assert not_rotated(cosmetics_main) and not_rotated(
+            fastening_clip), "Parts in '{FILE_PATH}' must not be rotated prior to import"
+
         return cosmetics_main, fastening_clip
 
 
@@ -384,6 +400,8 @@ classes = (
     ORTHOPEN_OT_permanent_modifiers,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_leg_prosthesis_generate,
+
+
 )
 register, unregister = bpy.utils.register_classes_factory(classes)
 
