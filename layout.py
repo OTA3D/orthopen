@@ -64,19 +64,9 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
         row.operator(operators.ORTHOPEN_OT_leg_prosthesis_generate.bl_idname)
 
 
-class TAB_PT_arm_wrist(bpy.types.Panel, PanelDefaults):
-    bl_label = "Arm and wrist"
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = True
-
-
 classes = (
     COMMON_PT_panel,
     TAB_PT_foot_leg,
-    TAB_PT_arm_wrist
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)
