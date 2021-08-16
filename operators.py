@@ -2,7 +2,6 @@ import copy
 import math
 from pathlib import Path
 
-import bmesh
 import bpy
 import bpy_extras
 import mathutils
@@ -355,43 +354,6 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         return cosmetics_main, fastening_clip
 
 
-class ORTHOPEN_OT_foot_splint(bpy.types.Operator):
-    """
-    Generate a foot splint from a scanned foot. Select vertices that should outline the footsplint first.
-    """
-    bl_idname = helpers.mangle_operator_name(__qualname__)
-    bl_label = "Generate"
-
-    @ classmethod
-    def poll(cls, context):
-        try:
-            return bpy.context.active_object.data.total_vert_sel > 2
-        except AttributeError:
-            return False
-
-    def execute(self, context):
-
-        # We need to switch from 'Edit mode' to 'Object mode' so the selection gets updated
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.ops.object.mode_set(mode='EDIT')
-
-        # Extract selected points in the X-Z plane, sorted in in Z direction (from foot to knee)
-        mesh = bmesh.from_edit_mesh(bpy.context.active_object.data)
-        selected_verts = [(v.co.x, v.co.z) for v in mesh.verts if v.select]
-        selected_verts.sort(key=lambda point: point[1])
-
-        # Add vertices that will circumvent the left side of foot (heel and backwards). Now we have
-        # polygon that outlines the vertice to be selected
-        x_min = -10000
-        selected_verts = [(x_min, selected_verts[0][1])] + selected_verts + [(x_min, selected_verts[-1][1])]
-
-        for v in mesh.verts:
-            v.select = helpers.inside_polygon(point=(v.co.x, v.co.z), polygon=selected_verts)
-
-        bmesh.update_edit_mesh(bpy.context.active_object.data)
-        return {'FINISHED'}
-
-
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """
     Opens a dialog for importing 3D scans. Use this instead of Blenders
@@ -421,7 +383,6 @@ classes = (
     ORTHOPEN_OT_set_foot_pivot,
     ORTHOPEN_OT_permanent_modifiers,
     ORTHOPEN_OT_import_file,
-    ORTHOPEN_OT_foot_splint,
     ORTHOPEN_OT_leg_prosthesis_generate,
 )
 register, unregister = bpy.utils.register_classes_factory(classes)
