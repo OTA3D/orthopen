@@ -4,6 +4,7 @@ It is a bit awkward to install packages in Blender, so we avoid that.
 """
 from collections import namedtuple
 import math
+from pathlib import Path
 
 import bpy
 from bpy_extras import view3d_utils
@@ -119,6 +120,43 @@ def object_size(object: bpy.types.Object):
 
     # The bounding box has to be scaled
     return diff * np.array(object.scale)
+
+
+def load_assets(filename: str, names: list) -> dict:
+    """
+    Import all assets from a *.blend file in the assets folder.
+
+    Args:
+        filename (str): Name of the *.blend file
+        names (list): All objects in the assets file that are of special interest.
+                      An explicit check is made to check that these objects are present
+
+    Returns:
+        assets (dict of str: bpy.types.Object):  Dictionary with the objects specified in names argument
+    """
+    # Import objects from file with assets
+    FILE_PATH = Path(__file__).parent.joinpath("assets", filename)
+
+    with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
+        # Here .objects are strings, but then the "with" context is exited
+        # they will be replaced by corresponding real objects
+        data_to.objects = data_from.objects
+
+    # Link objects to scene and save a reference
+    assets = dict()
+    for obj in data_to.objects:
+        # Blender might already have renamed my_asset --> my_asset_001 etc, due to duplicates so we
+        # cannot identify the assets by name directly
+        for original_name in names:
+            if original_name in obj.name:
+                assets[original_name] = obj
+        bpy.context.scene.collection.objects.link(obj)
+
+    # Make sure we got it all
+    missing_assets = [x for x in names if x not in assets.keys()]
+    assert len(missing_assets) == 0, f"Sought assets '{missing_assets}' not found in '{FILE_PATH}'"
+
+    return assets
 
 
 def bound_box_world(object: bpy.types.Object):

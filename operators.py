@@ -338,36 +338,15 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         return np.mean(selected_vertices, axis=0)
 
     def _import_from_assets_folder(self):
-        # Import objects from file with assets
-        FILE_PATH = Path(__file__).parent.joinpath("assets", "leg_prosthesis.blend")
-
-        with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
-            # Here .objects are strings, but then the "with" context is exited
-            # they will be replaced by corresponding real objects
-            data_to.objects = data_from.objects
-
-        # Link all objects to the scene and save a reference to the objects of special interest
-        for obj in data_to.objects:
-            if obj is not None:
-                # Blender might have renamed the objects to "clip_001" etc, hence we use a pattern match instead
-                # of direct string comparison
-                if "cosmetics_main" in obj.name:
-                    cosmetics_main = obj
-                if "clip" in obj.name:
-                    fastening_clip = obj
-
-                bpy.context.scene.collection.objects.link(obj)
-
-        assert "cosmetics_main" in locals() \
-            and "fastening_clip" in locals(), f"Required parts not found in '{FILE_PATH}'"
+        assets = helpers.load_assets(filename="leg_prosthesis.blend", names=["clip", "cosmetics_main"])
 
         # In following code, it is assumed that these objects are not rotated
         def not_rotated(object): return np.linalg.norm(np.array(object.matrix_world.to_quaternion()) -
                                                        np.array(mathutils.Quaternion())) < 1.E-7
-        assert not_rotated(cosmetics_main) and not_rotated(
-            fastening_clip), "Parts in '{FILE_PATH}' must not be rotated prior to import"
+        assert not_rotated(assets["cosmetics_main"]) and not_rotated(
+            assets["clip"]), "Parts in '{FILE_PATH}' must not be rotated prior to import"
 
-        return cosmetics_main, fastening_clip
+        return assets["cosmetics_main"], assets["clip"]
 
 
 class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
@@ -397,11 +376,11 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
             # See if there is an object in front of the mouse cursor
             ray = helpers.mouse_ray_cast(bpy.context, (event.mouse_region_x, event.mouse_region_y))
             if ray.object is None:
-                self.report({'INFO'}, "No object in found in front of mouse cursor")
+                self.report({'INFO'}, "No object found in front of mouse cursor")
                 return {'RUNNING_MODAL'}
 
             # Snap pad at surface normal
-            pad = self._load_pad()
+            pad = (helpers.load_assets(filename="pad.blend", names=["pad"]))["pad"]
             pad.matrix_world.translation = ray.object.matrix_world @ ray.intersection_point
             pad.rotation_mode = 'QUATERNION'
             pad.rotation_quaternion = ray.face_normal.to_track_quat('Z', 'Y')
@@ -424,24 +403,6 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
             return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
-
-    def _load_pad(self):
-        # Import objects from file with assets
-        FILE_PATH = Path(__file__).parent.joinpath("assets", "pad.blend")
-
-        with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
-            # Here .objects are strings, but then the "with" context is exited
-            # they will be replaced by corresponding real objects
-            data_to.objects = data_from.objects
-
-        for obj in data_to.objects:
-            if obj is not None and "pad" in obj.name:
-                pad = obj
-                bpy.context.scene.collection.objects.link(obj)
-
-        assert "pad" in locals(), "Could not find part 'pad' in '{FILE_PATH}'"
-
-        return pad
 
 
 class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
@@ -471,7 +432,7 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
             # See if there is an object in front of the mouse cursor
             toes = helpers.mouse_ray_cast(bpy.context, (event.mouse_region_x, event.mouse_region_y))
             if toes.object is None:
-                self.report({'INFO'}, "No object in found in front of mouse cursor")
+                self.report({'INFO'}, "No object found in front of mouse cursor")
                 return {'RUNNING_MODAL'}
 
             self._main(toes)
@@ -484,10 +445,7 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def _main(self, toes):
-        toe_box = self._load_toe_box()
-
-        # Try to center the toe box around the foot
-        toe_box.matrix_world.translation = toes.object.matrix_world @ toes.intersection_point
+        toe_box = (helpers.load_assets(filename="toe_box.blend", names=["toe_box"]))["toe_box"]
 
         # The toes point in the x direction, so we easily find the toes by selecting all vertices
         # a bit behind the largest x coordinate.
@@ -509,7 +467,7 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
         target_position = np.array(toes.object.matrix_world) @ np.hstack([np.mean(toe_vertices, axis=0), 1])
         OFFSET_IN_FRONT_OF_TOES = 0.02
         target_position[0] = x_max_world(toes.object) - (x_max_world(toe_box) -
-                                                            toe_box.matrix_world.translation[0]) + OFFSET_IN_FRONT_OF_TOES
+                                                         toe_box.matrix_world.translation[0]) + OFFSET_IN_FRONT_OF_TOES
 
         # Compose homog. transformation matrix
         mat = np.eye(4)
@@ -521,24 +479,6 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
         for modifier in toe_box.modifiers:
             if modifier.type == "SHRINKWRAP":
                 modifier.target = toes.object
-
-    def _load_toe_box(self):
-        # Import objects from file with assets
-        FILE_PATH = Path(__file__).parent.joinpath("assets", "toe_box.blend")
-
-        with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
-            # Here .objects are strings, but then the "with" context is exited
-            # they will be replaced by corresponding real objects
-            data_to.objects = data_from.objects
-
-        for obj in data_to.objects:
-            if obj is not None and "toe_box" in obj.name:
-                toe_box = obj
-                bpy.context.scene.collection.objects.link(obj)
-
-        assert "toe_box" in locals(), "Could not find part 'toe_box' in '{FILE_PATH}'"
-
-        return toe_box
 
 
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
