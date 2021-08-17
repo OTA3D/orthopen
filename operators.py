@@ -313,15 +313,15 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         Determine an origin of the fastening clamp based on current mouse coordinates. This
         origin should make the clamp align well with the prosthesis tube.
         """
-        object, intersection_obj = helpers.mouse_ray_cast(bpy.context, mouse_coords=mouse_coords)
+        ray = helpers.mouse_ray_cast(bpy.context, mouse_coords=mouse_coords)
 
-        if object is None:
+        if ray.intersection_point is None:
             return None
 
         # Convert from object to world coordinates
-        intersection_world = object.matrix_world @ intersection_obj
+        intersection_world = ray.object.matrix_world @ ray.intersection_point
         vertices_world = np.array([[v.co.x, v.co.y, v.co.z, 1]
-                                   for v in object.data.vertices]) @ np.array(list(object.matrix_world)).T
+                                   for v in ray.object.data.vertices]) @ np.array(list(ray.object.matrix_world)).T
 
         # Assume the prosthesis tube is perfectly cylindrical and parallel to the world Z-axis. Select
         # vertices symmetrically around the ray cast intersection.
@@ -372,8 +372,8 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
 class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
     """
-    Interactively generate a pad that sticks to surfaces. Hover the object where it should be centered. Can be used e.g.
-    for ensuring clearance between an ankle and a foot splint.
+    Interactively generate a pad that sticks to surfaces. Hover the object where it should be centered and click left mouse button. 
+    Can be used e.g. for ensuring clearance between an ankle and a foot splint.
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Generate pad"
@@ -394,24 +394,26 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
             # Allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'LEFTMOUSE':
-            # Try and place the pad where the use clicked
-            intersected_object, intersection_point = helpers.mouse_ray_cast(
-                bpy.context, (event.mouse_region_x, event.mouse_region_y))
-
-            if intersection_point is None:
+            # See if there is an object in front of the mouse cursor
+            ray = helpers.mouse_ray_cast(bpy.context, (event.mouse_region_x, event.mouse_region_y))
+            if ray.object is None:
                 self.report({'INFO'}, "No object in found in front of mouse cursor")
                 return {'RUNNING_MODAL'}
 
+            # Snap pad at surface normal
             pad = self._load_pad()
-            pad.matrix_world.translation = intersected_object.matrix_world @ intersection_point
+            pad.matrix_world.translation = ray.object.matrix_world @ ray.intersection_point
+            pad.rotation_mode = 'QUATERNION'
+            pad.rotation_quaternion = ray.face_normal.to_track_quat('Z', 'Y')
 
             # This will make the pad wrap to surfaces
             for modifier in pad.modifiers:
                 if modifier.type == "SHRINKWRAP":
-                    modifier.target = intersected_object
+                    modifier.target = ray.object
 
-            # These snap settings will make the pad "hover" above the target surface
+            # These tool settings will make the pad "hover" above the target surface.
             bpy.context.scene.tool_settings.use_snap = True
+            bpy.context.scene.tool_settings.snap_elements = {'FACE'}
             bpy.context.scene.tool_settings.snap_target = 'CENTER'
             bpy.context.scene.tool_settings.use_snap_align_rotation = True
 
