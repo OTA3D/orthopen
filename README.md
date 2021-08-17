@@ -2,7 +2,7 @@ OrthOpen is an open source add-on in blender to facilitate design of orthopaedic
 A guide aimed at end users of this plugin is coming soon.
 
 ## Getting started 
-It is recommended to use an external IDE for edititing the source code. A suitable editor is 
+It is recommended to use an external IDE for editing the source code. A suitable editor is 
 Visual Studio Code with the [Blender Development extension](https://marketplace.visualstudio.com/items?itemName=JacquesLucke.blender-development)
 
 ### Other material
