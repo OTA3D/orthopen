@@ -387,12 +387,6 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
 
     def invoke(self, context, event):
         context.window_manager.modal_handler_add(self)
-
-        # Import pad object
-        old_objects = set(context.scene.objects)
-        bpy.ops.mesh.primitive_cylinder_add(radius=1, depth=2, enter_editmode=False, align='WORLD',
-                                            location=(0, 0, 0), scale=(0.02, 0.02, 0.005))
-        self.pad = (list(set(context.scene.objects) - old_objects))[0]
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
@@ -400,17 +394,52 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
             # Allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'LEFTMOUSE':
-            return {'FINISHED'}
-        if event.type == 'MOUSEMOVE':
+            # Try and place the pad where the use clicked
             intersected_object, intersection_point = helpers.mouse_ray_cast(
                 bpy.context, (event.mouse_region_x, event.mouse_region_y))
 
-            if intersection_point is not None:
-                self.pad.matrix_world.translation = intersected_object.matrix_world @ intersection_point
+            if intersection_point is None:
+                self.report({'INFO'}, "No object in found in front of mouse cursor")
+                return {'RUNNING_MODAL'}
+
+            pad = self._load_pad()
+            pad.matrix_world.translation = intersected_object.matrix_world @ intersection_point
+
+            # This will make the pad wrap to surfaces
+            for modifier in pad.modifiers:
+                if modifier.type == "SHRINKWRAP":
+                    modifier.target = intersected_object
+
+            # These snap settings will make the pad "hover" above the target surface
+            bpy.context.scene.tool_settings.use_snap = True
+            bpy.context.scene.tool_settings.snap_target = 'CENTER'
+            bpy.context.scene.tool_settings.use_snap_align_rotation = True
+
+            return {'FINISHED'}
+        if event.type == 'MOUSEMOVE':
+            return {'PASS_THROUGH'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
+
+    def _load_pad(self):
+        # Import objects from file with assets
+        FILE_PATH = Path(__file__).parent.joinpath("assets", "pad.blend")
+
+        with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
+            # Here .objects are strings, but then the "with" context is exited
+            # they will be replaced by corresponding real objects
+            data_to.objects = data_from.objects
+
+        for obj in data_to.objects:
+            if obj is not None and "pad" in obj.name:
+                pad = obj
+                bpy.context.scene.collection.objects.link(obj)
+
+        assert "pad" in locals(), "Could not find part 'pad' in '{FILE_PATH}'"
+
+        return pad
 
 
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
