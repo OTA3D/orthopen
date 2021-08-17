@@ -119,3 +119,21 @@ def object_size(object: bpy.types.Object):
 
     # The bounding box has to be scaled
     return diff * np.array(object.scale)
+
+
+def bound_box_world(object: bpy.types.Object):
+    """
+    Get the object bounding box in world coordinates. Note that this
+    does not account for any modifiers applied.
+
+    Args:
+        object (bpy.types.Object): Blender object
+
+    Returns:
+        np.array: Corners of bounding box in world coordinates
+    """
+    # Row vectors, augmented with 1 as a column vector
+    bound_box_augmented = np.hstack([np.array(object.bound_box), np.ones([8, 1])])
+
+    # For order of multiplication, remember (A * B)^T = B^T * A^T
+    return (bound_box_augmented @ np.array(object.matrix_world).T)[:, :3]

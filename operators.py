@@ -372,7 +372,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
 class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
     """
-    Interactively generate a pad that sticks to surfaces. Hover the object where it should be centered and click left mouse button. 
+    Interactively generate a pad that sticks to surfaces. Hover the object where it should be centered and click left mouse button.
     Can be used e.g. for ensuring clearance between an ankle and a foot splint.
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
@@ -444,6 +444,103 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
         return pad
 
 
+class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
+    """
+    Generate a box around the toes. Used to ensure clearence between toes and the foot splint. Click
+    around the toes to place it.
+    """
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Generate toe box"
+
+    @ classmethod
+    def poll(cls, context):
+        try:
+            return bpy.context.object.mode == 'OBJECT'
+        except AttributeError:
+            return False
+
+    def invoke(self, context, event):
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
+            # Allow navigation
+            return {'PASS_THROUGH'}
+        elif event.type == 'LEFTMOUSE':
+            # See if there is an object in front of the mouse cursor
+            toes = helpers.mouse_ray_cast(bpy.context, (event.mouse_region_x, event.mouse_region_y))
+            if toes.object is None:
+                self.report({'INFO'}, "No object in found in front of mouse cursor")
+                return {'RUNNING_MODAL'}
+
+            self._main(toes)
+            return {'FINISHED'}
+        if event.type == 'MOUSEMOVE':
+            return {'PASS_THROUGH'}
+        elif event.type in {'RIGHTMOUSE', 'ESC'}:
+            return {'CANCELLED'}
+
+        return {'RUNNING_MODAL'}
+
+    def _main(self, toes):
+        toe_box = self._load_toe_box()
+
+        # Try to center the toe box around the foot
+        toe_box.matrix_world.translation = toes.object.matrix_world @ toes.intersection_point
+
+        # The toes point in the x direction, so we easily find the toes by selecting all vertices
+        # a bit behind the largest x coordinate.
+        all_vertices = np.array([(v.co.x, v.co.y, v.co.z) for v in toes.object.data.vertices])
+        SEL_RANGE_X = 0.09
+        sel = all_vertices[:, 0] > (np.amax(all_vertices[:, 0]) - SEL_RANGE_X)
+        toe_vertices = all_vertices[sel, :]
+
+        toe_size = np.amax(toe_vertices, axis=0) - np.amin(toe_vertices, axis=0)
+        toe_box_size = np.amax(np.array(toe_box.bound_box), axis=0) - np.amin(np.array(toe_box.bound_box), axis=0)
+
+        # Largest x coordinate of object
+        def x_max_world(object): return (np.amax(helpers.bound_box_world(object), axis=0))[0]
+
+        # Assume the length of the toe box is fine, and scale up the Y and Z directions
+        target_scale = np.array([1, toe_size[1] / toe_box_size[1], toe_size[2] / toe_box_size[2]])
+
+        # Place toe box at center of toes, with the closed end a little bit in front of the toes
+        target_position = np.array(toes.object.matrix_world) @ np.hstack([np.mean(toe_vertices, axis=0), 1])
+        OFFSET_IN_FRONT_OF_TOES = 0.02
+        target_position[0] = x_max_world(toes.object) - (x_max_world(toe_box) -
+                                                            toe_box.matrix_world.translation[0]) + OFFSET_IN_FRONT_OF_TOES
+
+        # Compose homog. transformation matrix
+        mat = np.eye(4)
+        mat[:3, :3] = np.diag(target_scale)
+        mat[:, 3] = target_position
+        toe_box.matrix_world = mathutils.Matrix(list(mat))
+
+        # This will make the pad wrap to surfaces
+        for modifier in toe_box.modifiers:
+            if modifier.type == "SHRINKWRAP":
+                modifier.target = toes.object
+
+    def _load_toe_box(self):
+        # Import objects from file with assets
+        FILE_PATH = Path(__file__).parent.joinpath("assets", "toe_box.blend")
+
+        with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
+            # Here .objects are strings, but then the "with" context is exited
+            # they will be replaced by corresponding real objects
+            data_to.objects = data_from.objects
+
+        for obj in data_to.objects:
+            if obj is not None and "toe_box" in obj.name:
+                toe_box = obj
+                bpy.context.scene.collection.objects.link(obj)
+
+        assert "toe_box" in locals(), "Could not find part 'toe_box' in '{FILE_PATH}'"
+
+        return toe_box
+
+
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """
     Opens a dialog for importing 3D scans. Use this instead of Blenders
@@ -471,6 +568,7 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
 
 classes = (
     ORTHOPEN_OT_generate_pad,
+    ORTHOPEN_OT_generate_toe_box,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_leg_prosthesis_generate,
     ORTHOPEN_OT_permanent_modifiers,
