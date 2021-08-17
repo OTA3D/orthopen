@@ -224,7 +224,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
                                         default=0.2)
 
     set_clip_position_z: bpy.props.FloatProperty(name="Clip start height",
-                                                 description="The lowest point of the fastening clips, measured relative to"
+                                                 description="The center point of the fastening clip measured relative to"
                                                  " the lowest point of the prosthesis cosmetics",
                                                  unit="LENGTH",
                                                  default=0.1)
@@ -269,29 +269,39 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         return {'RUNNING_MODAL'}
 
-    def _main(self, clamp_origin=None):
+    def _main(self, set_clamp_origin=None):
         cosmetics_main, fastening_clip = self._import_from_assets_folder()
 
-        if clamp_origin is not None:
-            # Adjust clamp by moving its parent, so all parts move along. This statement must come before the
-            # dimension change, for some reason, else the dimension change is overriden
-            # TODO(parlove@paxec.se):
-            # - Placement becomes a bit off in the Z direction, even though clamp_origin is correctly determined
-            cosmetics_main.matrix_world.translation = mathutils.Vector(list(clamp_origin))
-            - (fastening_clip.matrix_world.translation - cosmetics_main.matrix_world.translation)
+        # The bounding box is defined in object coordinates, and defines the mesh size with no scale applied
+        cosmetics_main_mesh_size = np.amax(np.array(cosmetics_main.bound_box), axis=0) - \
+            np.amin(np.array(cosmetics_main.bound_box), axis=0)
 
-        # Approximate the calf as as perfectly circular, and set the bounding box to a square that would circumvent this circle. The calf is a half
-        # circle along the X-axis, so halve that measurement
-        X_Y_MAX = self.set_max_circumference / np.pi
-        cosmetics_main.dimensions = (X_Y_MAX / 2, X_Y_MAX, self.set_height)
+        # Approximate the calf as as perfectly circular, and set the target bounding box
+        # to a square that would circumvent this circle
+        x_y_target_size = self.set_max_circumference / np.pi
 
-        # Smallest z-coordinate of the object bounding box
-        def get_z_min(object): return (np.amin(np.array(object.bound_box), axis=0))[2] * object.scale[2]
+        # The calf is a half circle along the X-axis, so halve that measurement
+        cosmetics_main_target_scale = np.array([x_y_target_size / 2, x_y_target_size, self.set_height])\
+            / cosmetics_main_mesh_size
 
-        # Adjust fastening clip bounding box so that its bottom placed in relation
-        # to the calf bounding box bottom according to settings.
-        fastening_clip.matrix_world.translation[2] += self.set_clip_position_z + \
-            get_z_min(cosmetics_main) - get_z_min(fastening_clip)
+        if set_clamp_origin is None:
+            set_clamp_origin = np.array(fastening_clip.matrix_world.translation)
+        fastening_clip.matrix_world.translation = mathutils.Vector(list(set_clamp_origin))
+
+        # This is true if the body is not rotated, and no modifiers are applied
+        cosmetics_main_origin_to_z_min = (np.amin(np.array(cosmetics_main.bound_box), axis=0))[2]\
+            * cosmetics_main_target_scale[2]
+
+        # Set the position of cosmetics main according to the user inputs. Other parts are parented and follow along
+        cosmetics_main_translation = set_clamp_origin + \
+            np.array([0, 0, -self.set_clip_position_z - cosmetics_main_origin_to_z_min])
+
+        # By setting scale and position directly in matrix_world "atomically" there is less risk of
+        # any of these properties getting lost between Blenders internal update cycles
+        mat = np.eye(4)
+        mat[:3, :3] = np.diag(cosmetics_main_target_scale)
+        mat[:3, 3] = cosmetics_main_translation
+        cosmetics_main.matrix_world = mathutils.Matrix(list(mat))
 
         # UI updates
         bpy.ops.object.select_all(action="DESELECT")
@@ -303,15 +313,15 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         Determine an origin of the fastening clamp based on current mouse coordinates. This
         origin should make the clamp align well with the prosthesis tube.
         """
-        object, intersection_obj = helpers.mouse_ray_cast(bpy.context, mouse_coords=mouse_coords)
+        ray = helpers.mouse_ray_cast(bpy.context, mouse_coords=mouse_coords)
 
-        if object is None:
+        if ray.intersection_point is None:
             return None
 
         # Convert from object to world coordinates
-        intersection_world = object.matrix_world @ intersection_obj
+        intersection_world = ray.object.matrix_world @ ray.intersection_point
         vertices_world = np.array([[v.co.x, v.co.y, v.co.z, 1]
-                                   for v in object.data.vertices]) @ np.array(list(object.matrix_world)).T
+                                   for v in ray.object.data.vertices]) @ np.array(list(ray.object.matrix_world)).T
 
         # Assume the prosthesis tube is perfectly cylindrical and parallel to the world Z-axis. Select
         # vertices symmetrically around the ray cast intersection.
@@ -351,7 +361,87 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         assert "cosmetics_main" in locals() \
             and "fastening_clip" in locals(), f"Required parts not found in '{FILE_PATH}'"
 
+        # In following code, it is assumed that these objects are not rotated
+        def not_rotated(object): return np.linalg.norm(np.array(object.matrix_world.to_quaternion()) -
+                                                       np.array(mathutils.Quaternion())) < 1.E-7
+        assert not_rotated(cosmetics_main) and not_rotated(
+            fastening_clip), "Parts in '{FILE_PATH}' must not be rotated prior to import"
+
         return cosmetics_main, fastening_clip
+
+
+class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
+    """
+    Interactively generate a pad that sticks to surfaces. Hover the object where it should be centered and click left mouse button. 
+    Can be used e.g. for ensuring clearance between an ankle and a foot splint.
+    """
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Generate pad"
+
+    @ classmethod
+    def poll(cls, context):
+        try:
+            return bpy.context.object.mode == 'OBJECT'
+        except AttributeError:
+            return False
+
+    def invoke(self, context, event):
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
+            # Allow navigation
+            return {'PASS_THROUGH'}
+        elif event.type == 'LEFTMOUSE':
+            # See if there is an object in front of the mouse cursor
+            ray = helpers.mouse_ray_cast(bpy.context, (event.mouse_region_x, event.mouse_region_y))
+            if ray.object is None:
+                self.report({'INFO'}, "No object in found in front of mouse cursor")
+                return {'RUNNING_MODAL'}
+
+            # Snap pad at surface normal
+            pad = self._load_pad()
+            pad.matrix_world.translation = ray.object.matrix_world @ ray.intersection_point
+            pad.rotation_mode = 'QUATERNION'
+            pad.rotation_quaternion = ray.face_normal.to_track_quat('Z', 'Y')
+
+            # This will make the pad wrap to surfaces
+            for modifier in pad.modifiers:
+                if modifier.type == "SHRINKWRAP":
+                    modifier.target = ray.object
+
+            # These tool settings will make the pad "hover" above the target surface.
+            bpy.context.scene.tool_settings.use_snap = True
+            bpy.context.scene.tool_settings.snap_elements = {'FACE'}
+            bpy.context.scene.tool_settings.snap_target = 'CENTER'
+            bpy.context.scene.tool_settings.use_snap_align_rotation = True
+
+            return {'FINISHED'}
+        if event.type == 'MOUSEMOVE':
+            return {'PASS_THROUGH'}
+        elif event.type in {'RIGHTMOUSE', 'ESC'}:
+            return {'CANCELLED'}
+
+        return {'RUNNING_MODAL'}
+
+    def _load_pad(self):
+        # Import objects from file with assets
+        FILE_PATH = Path(__file__).parent.joinpath("assets", "pad.blend")
+
+        with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
+            # Here .objects are strings, but then the "with" context is exited
+            # they will be replaced by corresponding real objects
+            data_to.objects = data_from.objects
+
+        for obj in data_to.objects:
+            if obj is not None and "pad" in obj.name:
+                pad = obj
+                bpy.context.scene.collection.objects.link(obj)
+
+        assert "pad" in locals(), "Could not find part 'pad' in '{FILE_PATH}'"
+
+        return pad
 
 
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
@@ -380,10 +470,11 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
 
 
 classes = (
-    ORTHOPEN_OT_set_foot_pivot,
-    ORTHOPEN_OT_permanent_modifiers,
+    ORTHOPEN_OT_generate_pad,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_leg_prosthesis_generate,
+    ORTHOPEN_OT_permanent_modifiers,
+    ORTHOPEN_OT_set_foot_pivot,
 )
 register, unregister = bpy.utils.register_classes_factory(classes)
 

@@ -41,6 +41,11 @@ class COMMON_PT_panel(bpy.types.Panel, PanelDefaults):
         row.scale_y = 1
         row.operator(operators.ORTHOPEN_OT_import_file.bl_idname)
 
+        # Generate pad
+        row = layout.row()
+        row.scale_y = 1
+        row.operator(operators.ORTHOPEN_OT_generate_pad.bl_idname)
+
 
 class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
     bl_label = "Foot and leg"
