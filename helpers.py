@@ -36,7 +36,7 @@ def mangle_operator_name(class_name: str):
         raise ValueError("Only use this for operators, all other 'bl_idname' fields are set automatically")
 
 
-def mouse_ray_cast(context: bpy.types.Context, mouse_coords):
+def mouse_ray_cast(context: bpy.types.Context, mouse_coords: tuple, ignore: list = []):
     """
     Find the object that appears to be in front of the mouse cursor.
 
@@ -45,6 +45,7 @@ def mouse_ray_cast(context: bpy.types.Context, mouse_coords):
     Args:
         context (bpy.types.Context): Current windowmanager context
         mouse_coords (tuple): Current mouse cursor position
+        ignore (list): Names of objects to ignore during raycast
 
     Returns:
         namedtuple: Data on the intersection, intersection_point is in object coordinates. All fields 'None' at no intersection.
@@ -66,7 +67,7 @@ def mouse_ray_cast(context: bpy.types.Context, mouse_coords):
         else:
             obj, matrix_world = (object.object, object.object.matrix_world.copy())
 
-        if obj.type == 'MESH':
+        if (obj.name not in ignore) and (obj.type == 'MESH'):
             # Rays are cast in the object coordinate system, so we need to transform these vectors
             ray_origin_obj = matrix_world.inverted() @ ray_origin_world
             ray_target_obj = matrix_world.inverted() @ ray_target_world

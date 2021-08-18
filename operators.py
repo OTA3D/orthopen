@@ -365,6 +365,8 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
             return False
 
     def invoke(self, context, event):
+        self.pad = (helpers.load_assets(filename="pad.blend", names=["pad"]))["pad"]
+
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
@@ -372,21 +374,30 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # Allow navigation
             return {'PASS_THROUGH'}
+        elif event.type in {'MOUSEMOVE'}:
+            ray = helpers.mouse_ray_cast(
+                bpy.context, (event.mouse_region_x, event.mouse_region_y), ignore=[self.pad.name])
+            if ray.object is None:
+                return {'RUNNING_MODAL'}
+
+            # Snap pad at surface normal when the user moves the cursor around
+            self.pad.matrix_world.translation = ray.object.matrix_world @ ray.intersection_point
+            self.pad.rotation_mode = 'QUATERNION'
+            self.pad.rotation_quaternion = ray.face_normal.to_track_quat('Z', 'Y')
+
+            return {'RUNNING_MODAL'}
+
         elif event.type == 'LEFTMOUSE':
             # See if there is an object in front of the mouse cursor
-            ray = helpers.mouse_ray_cast(bpy.context, (event.mouse_region_x, event.mouse_region_y))
-            if ray.object is None:
+            ray = helpers.mouse_ray_cast(
+                bpy.context, (event.mouse_region_x, event.mouse_region_y), ignore=[
+                    self.pad.name])
+            if (ray.object is None):
                 self.report({'INFO'}, "No object found in front of mouse cursor")
                 return {'RUNNING_MODAL'}
 
-            # Snap pad at surface normal
-            pad = (helpers.load_assets(filename="pad.blend", names=["pad"]))["pad"]
-            pad.matrix_world.translation = ray.object.matrix_world @ ray.intersection_point
-            pad.rotation_mode = 'QUATERNION'
-            pad.rotation_quaternion = ray.face_normal.to_track_quat('Z', 'Y')
-
             # This will make the pad wrap to surfaces
-            for modifier in pad.modifiers:
+            for modifier in self.pad.modifiers:
                 if modifier.type == "SHRINKWRAP":
                     modifier.target = ray.object
 
