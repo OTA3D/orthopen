@@ -418,8 +418,8 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
 
 class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
     """
-    Generate a box around the toes. Used to ensure clearence between toes and the foot splint. Click
-    around the toes to place it.
+    Generate a box around the toes. Used to ensure clearence between toes and the foot splint. Select
+    a leg or a foot first
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Generate toe box"
@@ -427,40 +427,16 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
     @ classmethod
     def poll(cls, context):
         try:
-            return bpy.context.object.mode == 'OBJECT'
+            return len(bpy.context.selected_objects) == 1
         except AttributeError:
             return False
 
-    def invoke(self, context, event):
-        context.window_manager.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
-
-    def modal(self, context, event):
-        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
-            # Allow navigation
-            return {'PASS_THROUGH'}
-        elif event.type == 'LEFTMOUSE':
-            # See if there is an object in front of the mouse cursor
-            toes = helpers.mouse_ray_cast(bpy.context, (event.mouse_region_x, event.mouse_region_y))
-            if toes.object is None:
-                self.report({'INFO'}, "No object found in front of mouse cursor")
-                return {'RUNNING_MODAL'}
-
-            self._main(toes)
-            return {'FINISHED'}
-        if event.type == 'MOUSEMOVE':
-            return {'PASS_THROUGH'}
-        elif event.type in {'RIGHTMOUSE', 'ESC'}:
-            return {'CANCELLED'}
-
-        return {'RUNNING_MODAL'}
-
-    def _main(self, toes):
+    def execute(self, context):
         toe_box = (helpers.load_assets(filename="toe_box.blend", names=["toe_box"]))["toe_box"]
-
+        leg = context.active_object
         # The toes point in the x direction, so we easily find the toes by selecting all vertices
         # a bit behind the largest x coordinate.
-        all_vertices = np.array([(v.co.x, v.co.y, v.co.z) for v in toes.object.data.vertices])
+        all_vertices = np.array([(v.co.x, v.co.y, v.co.z) for v in leg.data.vertices])
         SEL_RANGE_X = 0.09
         sel = all_vertices[:, 0] > (np.amax(all_vertices[:, 0]) - SEL_RANGE_X)
         toe_vertices = all_vertices[sel, :]
@@ -475,10 +451,10 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
         target_scale = np.array([1, toe_size[1] / toe_box_size[1], toe_size[2] / toe_box_size[2]])
 
         # Place toe box at center of toes, with the closed end a little bit in front of the toes
-        target_position = np.array(toes.object.matrix_world) @ np.hstack([np.mean(toe_vertices, axis=0), 1])
+        target_position = np.array(leg.matrix_world) @ np.hstack([np.mean(toe_vertices, axis=0), 1])
         OFFSET_IN_FRONT_OF_TOES = 0.02
-        target_position[0] = x_max_world(toes.object) - (x_max_world(toe_box) -
-                                                         toe_box.matrix_world.translation[0]) + OFFSET_IN_FRONT_OF_TOES
+        target_position[0] = x_max_world(leg) - (x_max_world(toe_box) -
+                                                 toe_box.matrix_world.translation[0]) + OFFSET_IN_FRONT_OF_TOES
 
         # Compose homog. transformation matrix
         mat = np.eye(4)
@@ -489,7 +465,9 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
         # This will make the pad wrap to surfaces
         for modifier in toe_box.modifiers:
             if modifier.type == "SHRINKWRAP":
-                modifier.target = toes.object
+                modifier.target = leg
+
+        return {'FINISHED'}
 
 
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
