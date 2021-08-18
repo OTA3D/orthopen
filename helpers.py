@@ -60,12 +60,12 @@ def mouse_ray_cast(context: bpy.types.Context, mouse_coords: tuple, ignore: list
     # Loop through all objects, cast the same ray, and see if the ray intersects the object
     best_length_squared = -1.0
     best_obj_data = RayCastResult(None, None, None, None)
-    for object in context.evaluated_depsgraph_get().object_instances:
+    for dup in context.evaluated_depsgraph_get().object_instances:
         # We have to treat instances and copies a bit differently
-        if object.is_instance:
-            obj, matrix_world = (object.instance_object, object.matrix_world.copy())
+        if dup.is_instance:
+            obj, matrix_world = (dup.instance_object, dup.matrix_world.copy())
         else:
-            obj, matrix_world = (object.object, object.object.matrix_world.copy())
+            obj, matrix_world = (dup.object, dup.object.matrix_world.copy())
 
         if (obj.name not in ignore) and (obj.type == 'MESH'):
             # Rays are cast in the object coordinate system, so we need to transform these vectors
@@ -80,7 +80,8 @@ def mouse_ray_cast(context: bpy.types.Context, mouse_coords: tuple, ignore: list
                 # TODO(parlove@paxec.se): This criteria is not great, we sometimes
                 # get objects not perceived to be directly in front of the mouse pointer
                 if best_obj_data.object is None or length_squared < best_length_squared:
-                    best_obj_data = RayCastResult(object=obj, intersection_point=intersection_point,
+                    # Note ".original"! Else we get some copy from the depsgraph
+                    best_obj_data = RayCastResult(object=obj.original, intersection_point=intersection_point,
                                                   face_normal=normal, face_index=index)
                     best_length_squared = length_squared
 
