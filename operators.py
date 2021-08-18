@@ -434,27 +434,31 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
     def execute(self, context):
         toe_box = (helpers.load_assets(filename="toe_box.blend", names=["toe_box"]))["toe_box"]
         leg = context.active_object
-        # The toes point in the x direction, so we easily find the toes by selecting all vertices
-        # a bit behind the largest x coordinate.
         all_vertices = np.array([(v.co.x, v.co.y, v.co.z) for v in leg.data.vertices])
-        SEL_RANGE_X = 0.09
-        sel = all_vertices[:, 0] > (np.amax(all_vertices[:, 0]) - SEL_RANGE_X)
-        toe_vertices = all_vertices[sel, :]
 
+        # Due to the L-shaped geometry of a leg and a foot, we can get the approximate length of the foot like this
+        foot_length_x = np.amax(all_vertices[:, 0]) - np.amin(all_vertices[:, 0])
+
+        # The toes point in the x direction, so we find the toes by selecting all vertices
+        # a bit behind the largest x coordinate
+        sel_range_x_to_get_toes_only = foot_length_x * 0.35
+        toe_sel = all_vertices[:, 0] > (np.amax(all_vertices[:, 0]) - sel_range_x_to_get_toes_only)
+        toe_vertices = all_vertices[toe_sel, :]
         toe_size = np.amax(toe_vertices, axis=0) - np.amin(toe_vertices, axis=0)
+
+        # Calculate how the toe box should be scaled to fit around the toes
         toe_box_size = np.amax(np.array(toe_box.bound_box), axis=0) - np.amin(np.array(toe_box.bound_box), axis=0)
-
-        # Largest x coordinate of object
-        def x_max_world(object): return (np.amax(helpers.bound_box_world(object), axis=0))[0]
-
-        # Assume the length of the toe box is fine, and scale up the Y and Z directions
-        target_scale = np.array([1, toe_size[1] / toe_box_size[1], toe_size[2] / toe_box_size[2]])
+        RATIO_OF_FOOT_BOX_SHOULD_COVER = 0.45
+        CLEARANCE_IN_FRONT_OF_TOES = 0.015
+        target_scale = np.array([(RATIO_OF_FOOT_BOX_SHOULD_COVER * foot_length_x + CLEARANCE_IN_FRONT_OF_TOES) / toe_box_size[0],
+                                 toe_size[1] / toe_box_size[1],
+                                 toe_size[2] / toe_box_size[2]])
 
         # Place toe box at center of toes, with the closed end a little bit in front of the toes
         target_position = np.array(leg.matrix_world) @ np.hstack([np.mean(toe_vertices, axis=0), 1])
-        OFFSET_IN_FRONT_OF_TOES = 0.02
-        target_position[0] = x_max_world(leg) - (x_max_world(toe_box) -
-                                                 toe_box.matrix_world.translation[0]) + OFFSET_IN_FRONT_OF_TOES
+        toe_box_origin_to_x_max = np.amax(np.array(toe_box.bound_box)[:, 0]) * target_scale[0]
+        foot_x_max = (np.amax(helpers.bound_box_world(leg), axis=0))[0]
+        target_position[0] = foot_x_max - toe_box_origin_to_x_max + CLEARANCE_IN_FRONT_OF_TOES
 
         # Compose homog. transformation matrix
         mat = np.eye(4)
