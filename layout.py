@@ -68,6 +68,11 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
         row.scale_y = 1.0
         row.operator(operators.ORTHOPEN_OT_leg_prosthesis_generate.bl_idname)
 
+        layout.label(text="Foot splint")
+        row = layout.row()
+        row.scale_y = 1.0
+        row.operator(operators.ORTHOPEN_OT_generate_toe_box.bl_idname)
+
 
 classes = (
     COMMON_PT_panel,
