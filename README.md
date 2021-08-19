@@ -1,10 +1,10 @@
 OrthOpen is a free, open source add-on in Blender for facilitating the design of orthopedic aids such as orthoses.  Our
 goal is to make it easier, faster and more cost-efficient (Blender is free) for orthopedic specialists worldwide to help
-their patients. 
+their patients.
 
 ![](doc/rotation_demo.gif)
 
-This page is aimed towards developers. A guide aimed towards end users of this plugin is coming soon.
+This page is aimed towards developers. A user guide if found [here](https://ota3d.github.io/orthopen/).
 
 ## Getting started 
 Clone the repository. This repository uses Git LFS so you also need to issue 

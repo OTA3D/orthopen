@@ -80,6 +80,9 @@ class TAB_PT_help(bpy.types.Panel, PanelDefaults):
         row = self.layout.row()
         row.operator("wm.url_open", text="Report an issue").url = "https://github.com/OTA3D/orthopen/issues"
 
+        row = self.layout.row()
+        row.operator("wm.url_open", text="User guide").url = "https://ota3d.github.io/orthopen/"
+
 
 classes = (
     COMMON_PT_panel,
