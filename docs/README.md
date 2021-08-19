@@ -5,6 +5,12 @@ CNC equipment and 3D printers.
 
 > **_NOTE:_**  Orthoses and such may only be recommended to a patient by a medical professional.
 
+- [Installation](#installation)
+  - [Locating OrthOpen](#locating-orthopen)
+- [General usage](#general-usage)
+  - [Proper alignment](#proper-alignment)
+    - [Correcting alignment](#correcting-alignment)
+
 # Installation
 First, [install Blender](https://www.blender.org/download/). If you are using Linux, it is recommended to install it
 using a tar-ball into a folder where you have full privilegies. 
