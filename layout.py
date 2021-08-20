@@ -33,7 +33,6 @@ class COMMON_PT_panel(bpy.types.Panel, PanelDefaults):
     def draw(self, context):
         layout = self.layout
         layout.use_property_decorate = True
-
         layout.label(text="Common controls")
 
         # Import button
@@ -74,9 +73,21 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
         row.operator(operators.ORTHOPEN_OT_generate_toe_box.bl_idname)
 
 
+class TAB_PT_help(bpy.types.Panel, PanelDefaults):
+    bl_label = "Help"
+
+    def draw(self, context):
+        row = self.layout.row()
+        row.operator("wm.url_open", text="Report an issue").url = "https://github.com/OTA3D/orthopen/issues"
+
+        row = self.layout.row()
+        row.operator("wm.url_open", text="User guide").url = "https://ota3d.github.io/orthopen/"
+
+
 classes = (
     COMMON_PT_panel,
     TAB_PT_foot_leg,
+    TAB_PT_help,
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)

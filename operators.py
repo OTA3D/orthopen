@@ -105,8 +105,6 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
             return False
 
     def invoke(self, context, event):
-        self.pad = (helpers.load_assets(filename="pad.blend", names=["pad"]))["pad"]
-
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
@@ -116,7 +114,7 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
             return {'PASS_THROUGH'}
         elif event.type in {'MOUSEMOVE'}:
             ray = helpers.mouse_ray_cast(
-                bpy.context, (event.mouse_region_x, event.mouse_region_y), ignore=[self.pad.name])
+                bpy.context, (event.mouse_region_x, event.mouse_region_y))
             if ray.object is not None:
                 bpy.context.scene.cursor.location = ray.intersection_point
 
