@@ -72,6 +72,10 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
         row.scale_y = 1.0
         row.operator(operators.ORTHOPEN_OT_generate_toe_box.bl_idname)
 
+        row = layout.row()
+        row.scale_y = 1.0
+        row.operator(operators.ORTHOPEN_OT_generate_foot_splint.bl_idname)
+
 
 class TAB_PT_help(bpy.types.Panel, PanelDefaults):
     bl_label = "Help"

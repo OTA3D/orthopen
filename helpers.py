@@ -147,11 +147,15 @@ def load_assets(filename: str, names: list) -> dict:
     # Link objects to scene and save a reference
     assets = dict()
     for obj in data_to.objects:
-        # Blender might already have renamed my_asset --> my_asset_001 etc, due to duplicates so we
-        # cannot identify the assets by name directly
+        asset_key = obj.name
+        # If this is a "sought object", override asset name
         for original_name in names:
+            # Blender might already have renamed my_asset --> my_asset_001 etc, due to duplicates so we
+            # cannot identify the assets names by ==
             if original_name in obj.name:
-                assets[original_name] = obj
+                asset_key = original_name
+        assets[asset_key] = obj
+
         bpy.context.scene.collection.objects.link(obj)
 
     # Make sure we got it all

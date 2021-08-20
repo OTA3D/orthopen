@@ -497,6 +497,34 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class ORTHOPEN_OT_generate_foot_splint(bpy.types.Operator):
+    """
+    Generate a foot splint. Beta version that just import a part to the scene.
+    """
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Generate foot splint"
+
+    @ classmethod
+    def poll(cls, context):
+        # TODO(parlove@paxec.se): Condition for being in 3D object view here
+        return True
+
+    def invoke(self, context, event):
+        assets = helpers.load_assets(filename="foot_splint.blend", names=["foot_splint"])
+
+        # TODO(parlove@paxec.se): All the below stuff is here to restore collection
+        # strucuture, becuase the import function does not yet respect this
+        foot_splint_collection = bpy.data.collections.new("foot_splint_coll")
+        bpy.context.scene.collection.children.link(foot_splint_collection)
+        for key, object in assets.items():
+            # Hide all but the main foot splint part
+            object.hide_viewport = False if key == "foot_splint" else True
+            bpy.context.scene.collection.objects.unlink(object)
+            foot_splint_collection.objects.link(object)
+
+        return {'FINISHED'}
+
+
 class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """
     Opens a dialog for importing 3D scans. Use this instead of Blenders
@@ -523,6 +551,7 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
 
 
 classes = (
+    ORTHOPEN_OT_generate_foot_splint,
     ORTHOPEN_OT_generate_pad,
     ORTHOPEN_OT_generate_toe_box,
     ORTHOPEN_OT_import_file,
