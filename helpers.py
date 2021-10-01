@@ -2,9 +2,12 @@
 Functions that were needed but couldn't be found in Blender or numpy.
 It is a bit awkward to install packages in Blender, so we avoid that.
 """
+from collections import namedtuple
 import math
+from pathlib import Path
 
 import bpy
+from bpy_extras import view3d_utils
 import mathutils
 import numpy as np
 
@@ -31,6 +34,58 @@ def mangle_operator_name(class_name: str):
         return class_name_list[0].lower() + "." + (class_name.split("OT_"))[-1].lower()
     else:
         raise ValueError("Only use this for operators, all other 'bl_idname' fields are set automatically")
+
+
+def mouse_ray_cast(context: bpy.types.Context, mouse_coords: tuple, ignore: list = []):
+    """
+    Find the object that appears to be in front of the mouse cursor.
+
+    Based on template 'Operator Modal View3D raycast'
+
+    Args:
+        context (bpy.types.Context): Current windowmanager context
+        mouse_coords (tuple): Current mouse cursor position
+        ignore (list): Names of objects to ignore during raycast
+
+    Returns:
+        namedtuple: Data on the intersection, intersection_point is in object coordinates. All fields 'None' at no intersection.
+    """
+    # Get the ray from the viewport and mouse
+    RayCastResult = namedtuple('RayCastResult', ['object', 'intersection_point', 'face_normal', 'face_index'])
+
+    view_vector = view3d_utils.region_2d_to_vector_3d(context.region, context.region_data, mouse_coords)
+    ray_origin_world = view3d_utils.region_2d_to_origin_3d(context.region, context.region_data, mouse_coords)
+    ray_target_world = ray_origin_world + view_vector
+
+    # Loop through all objects, cast the same ray, and see if the ray intersects the object
+    best_length_squared = -1.0
+    best_obj_data = RayCastResult(None, None, None, None)
+    for dup in context.evaluated_depsgraph_get().object_instances:
+        # We have to treat instances and copies a bit differently
+        if dup.is_instance:
+            obj, matrix_world = (dup.instance_object, dup.matrix_world.copy())
+        else:
+            obj, matrix_world = (dup.object, dup.object.matrix_world.copy())
+
+        if (obj.name not in ignore) and (obj.type == 'MESH'):
+            # Rays are cast in the object coordinate system, so we need to transform these vectors
+            ray_origin_obj = matrix_world.inverted() @ ray_origin_world
+            ray_target_obj = matrix_world.inverted() @ ray_target_world
+
+            ray_direction_obj = ray_target_obj - ray_origin_obj
+            hit, intersection_point, normal, index = obj.ray_cast(ray_origin_obj, ray_direction_obj)
+
+            if hit:
+                length_squared = (intersection_point - ray_origin_obj).length_squared
+                # TODO(parlove@paxec.se): This criteria is not great, we sometimes
+                # get objects not perceived to be directly in front of the mouse pointer
+                if best_obj_data.object is None or length_squared < best_length_squared:
+                    # Note ".original"! Else we get some copy from the depsgraph
+                    best_obj_data = RayCastResult(object=obj.original, intersection_point=intersection_point,
+                                                  face_normal=normal, face_index=index)
+                    best_length_squared = length_squared
+
+    return best_obj_data
 
 
 def set_view_to_xz():
@@ -69,73 +124,56 @@ def object_size(object: bpy.types.Object):
     return diff * np.array(object.scale)
 
 
-def inside_polygon(point, polygon):
-    """Check if point is inside polygon. The function will close the polygon,
-    i.e. connect the last point to the first.
+def load_assets(filename: str, names: list) -> dict:
+    """
+    Import all assets from a *.blend file in the assets folder.
 
     Args:
-        point (tuple): A point described as a tuple (size 2x1)
-        polygon (list): List of tuples of points
+        filename (str): Name of the *.blend file
+        names (list): All objects in the assets file that are of special interest.
+                      An explicit check is made to check that these objects are present
 
     Returns:
-        bool: True if the point is inside the polygon
+        assets (dict of str: bpy.types.Object):  Dictionary with the objects specified in names argument
     """
+    # Import objects from file with assets
+    FILE_PATH = Path(__file__).parent.joinpath("assets", filename)
 
-    point_x, point_y = point[0], point[1]
+    with bpy.data.libraries.load(str(FILE_PATH)) as (data_from, data_to):
+        # Here .objects are strings, but then the "with" context is exited
+        # they will be replaced by corresponding real objects
+        data_to.objects = data_from.objects
 
-    # Edges of the polygon, connect end point to the start point
-    polygon_edges = zip(polygon, polygon[1:] + [polygon[0]])
+    # Link objects to scene and save a reference
+    assets = dict()
+    for obj in data_to.objects:
+        # Blender might already have renamed my_asset --> my_asset_001 etc, due to duplicates so we
+        # cannot identify the assets by name directly
+        for original_name in names:
+            if original_name in obj.name:
+                assets[original_name] = obj
+        bpy.context.scene.collection.objects.link(obj)
 
-    # Loop through every edge of the polygon and check if point
-    # extended to the right intersects the polygon edges an uneven number of times
-    # See: Point inside polygon ray casting algorithm,
-    # https://en.wikipedia.org/wiki/Point_in_polygon)
-    inside = False
-    for ((edge_x1, edge_y1), (edge_x2, edge_y2)) in polygon_edges:
+    # Make sure we got it all
+    missing_assets = [x for x in names if x not in assets.keys()]
+    assert len(missing_assets) == 0, f"Sought assets '{missing_assets}' not found in '{FILE_PATH}'"
 
-        cannot_intersect = (point_y < min(edge_y1, edge_y2)) or \
-            (point_y > max(edge_y1, edge_y2)) or \
-            (point_x >= max(edge_x1, edge_x2))
-
-        edge_is_horizontal = (edge_y1 == edge_y2)
-
-        if (cannot_intersect or edge_is_horizontal):
-            continue
-
-        # Ray cast at [y = point_y] and see if ray intersects the edge to the left or right of point
-        dx_dy = (edge_x2 - edge_x1) / (edge_y2 - edge_y1)
-        intersection_x = dx_dy * (point_y - edge_y1) + edge_x1
-        if point_x <= intersection_x:
-            # This implicitly checks if we have an uneven number of intersections
-            inside = not inside
-
-    return inside
+    return assets
 
 
-if __name__ == "__main__":
-    # Demonstration of "point in polygon" functionality
+def bound_box_world(object: bpy.types.Object):
+    """
+    Get the object bounding box in world coordinates. Note that this
+    does not account for any modifiers applied.
 
-    import matplotlib.pyplot as plt
-    BOX_SIZE = 1
+    Args:
+        object (bpy.types.Object): Blender object
 
-    # Let first side slope rightwards
-    DY_DX = 1
-    polygon = [(x, DY_DX * x) for x in np.arange(start=0, stop=BOX_SIZE, step=0.1)]
+    Returns:
+        np.array: Corners of bounding box in world coordinates
+    """
+    # Row vectors, augmented with 1 as a column vector
+    bound_box_augmented = np.hstack([np.array(object.bound_box), np.ones([8, 1])])
 
-    # Add rightside corners
-    polygon += [(BOX_SIZE, BOX_SIZE), (BOX_SIZE, 0)]
-
-    # Generate 2D point cloud
-    N_POINTS = 1000
-    CLOUD_SIZE = BOX_SIZE * 2
-    points = np.random.rand(N_POINTS, 2) * CLOUD_SIZE - np.array([BOX_SIZE / 2, BOX_SIZE / 2])
-
-    inside = np.array([inside_polygon(points[i, :], polygon) for i in range(N_POINTS)])
-
-    # Plots
-    polygon_closed = polygon + [polygon[0]]
-    plt.plot([p[0] for p in polygon_closed], [p[1] for p in polygon_closed], c='k')
-    plt.scatter(points[inside, 0], points[inside, 1], c='r')
-    plt.scatter(points[~inside, 0], points[~inside, 1], c='b')
-    plt.legend(["Polygon boundary", "Inside", "Outside"])
-    plt.show()
+    # For order of multiplication, remember (A * B)^T = B^T * A^T
+    return (bound_box_augmented @ np.array(object.matrix_world).T)[:, :3]

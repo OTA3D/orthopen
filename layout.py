@@ -33,13 +33,17 @@ class COMMON_PT_panel(bpy.types.Panel, PanelDefaults):
     def draw(self, context):
         layout = self.layout
         layout.use_property_decorate = True
-
         layout.label(text="Common controls")
-        row = layout.row()
-        row.scale_y = 1
 
         # Import button
+        row = layout.row()
+        row.scale_y = 1
         row.operator(operators.ORTHOPEN_OT_import_file.bl_idname)
+
+        # Generate pad
+        row = layout.row()
+        row.scale_y = 1
+        row.operator(operators.ORTHOPEN_OT_generate_pad.bl_idname)
 
 
 class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
@@ -63,25 +67,27 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
         row.scale_y = 1.0
         row.operator(operators.ORTHOPEN_OT_leg_prosthesis_generate.bl_idname)
 
-        layout.label(text="Generate")
+        layout.label(text="Foot splint")
         row = layout.row()
         row.scale_y = 1.0
-        row.operator(operators.ORTHOPEN_OT_foot_splint.bl_idname)
+        row.operator(operators.ORTHOPEN_OT_generate_toe_box.bl_idname)
 
 
-class TAB_PT_arm_wrist(bpy.types.Panel, PanelDefaults):
-    bl_label = "Arm and wrist"
+class TAB_PT_help(bpy.types.Panel, PanelDefaults):
+    bl_label = "Help"
 
     def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = True
+        row = self.layout.row()
+        row.operator("wm.url_open", text="Report an issue").url = "https://github.com/OTA3D/orthopen/issues"
+
+        row = self.layout.row()
+        row.operator("wm.url_open", text="User guide").url = "https://ota3d.github.io/orthopen/"
 
 
 classes = (
     COMMON_PT_panel,
     TAB_PT_foot_leg,
-    TAB_PT_arm_wrist
+    TAB_PT_help,
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)
