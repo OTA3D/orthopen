@@ -42,6 +42,7 @@ class ORTHOPEN_OT_permanent_modifiers(bpy.types.Operator):
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Apply changes"
+    bl_options = {'UNDO'}
 
     @classmethod
     def poll(cls, context):
@@ -240,29 +241,34 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         unit="LENGTH",
         default=0.35)
 
-    set_height: bpy.props.FloatProperty(name="Cosmetics total height",
-                                        description="The extent of the cosmetics, "
-                                        "from top to bottom",
-                                        unit="LENGTH",
-                                        default=0.2)
+    set_height: bpy.props.FloatProperty(
+        name="Cosmetics total height",
+        description="The extent of the cosmetics, "
+        "from top to bottom",
+        unit="LENGTH",
+        default=0.2)
 
-    set_clip_position_z: bpy.props.FloatProperty(name="Clip start height",
-                                                 description="The center point of the fastening clip measured relative to"
-                                                 " the lowest point of the prosthesis cosmetics",
-                                                 unit="LENGTH",
-                                                 default=0.1)
+    set_clip_position_z: bpy.props.FloatProperty(
+        name="Clip start height",
+        description="The center point of the fastening clip measured relative to"
+        " the lowest point of the prosthesis cosmetics",
+        unit="LENGTH",
+        default=0.1)
 
-    use_interactive_placement: bpy.props.BoolProperty(name="Interactive clip placement",
-                                                      description="After clicking 'OK' below, click a point on the prosthesis tube where"
-                                                      " the fastening clip should be placed",
-                                                      default=True)
+    use_interactive_placement: bpy.props.BoolProperty(
+        name="Interactive clip placement",
+        description="After clicking 'OK' below, click a point on the prosthesis tube where"
+        " the fastening clip should be placed",
+        default=True)
 
     @ classmethod
     def poll(cls, context):
+        # Chooses whether the option shall be available even when no model has been imported.
+        # True = show || False = hide
         try:
-            return bpy.context.object.mode == 'OBJECT'
+            return bpy.context.object.mode == 'OBJECT' 
         except AttributeError:
-            return False
+            return True
 
     def execute(self, context):
         if self.use_interactive_placement:
@@ -303,7 +309,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         # to a square that would circumvent this circle
         x_y_target_size = self.set_max_circumference / np.pi
 
-        # The calf is a half circle along the X-axis, so halve that measurement
+        # The calf is a half circle along the X-axis, so half that measurement
         cosmetics_main_target_scale = np.array([x_y_target_size / 2, x_y_target_size, self.set_height])\
             / cosmetics_main_mesh_size
 
@@ -319,7 +325,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         cosmetics_main_translation = set_clamp_origin + \
             np.array([0, 0, -self.set_clip_position_z - cosmetics_main_origin_to_z_min])
 
-        # By setting scale and position directly in matrix_world "atomically" there is less risk of
+        # By setting scale and position directly in matrix_world "automically" there is less risk of
         # any of these properties getting lost between Blenders internal update cycles
         mat = np.eye(4)
         mat[:3, :3] = np.diag(cosmetics_main_target_scale)
@@ -371,6 +377,28 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         return assets["cosmetics_main"], assets["clip"]
 
+class ORTHOPEN_OT_leg_prosthesis_edit(bpy.types.Operator):
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Edit cosmetic"
+    bl_options = {'UNDO'}
+
+    @ classmethod
+    def poll(cls, context):
+        try:
+            return bpy.context.object.mode == 'OBJECT'
+        except AttributeError:
+            return False
+
+    def execute(self, context):
+        if self.use_interactive_placement:
+            context.window_manager.modal_handler_add(self)
+            return {'RUNNING_MODAL'}
+
+        self._main()
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
 
 class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
     """
@@ -379,6 +407,7 @@ class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Generate pad"
+    bl_options = {'UNDO'}
 
     @ classmethod
     def poll(cls, context):
@@ -446,6 +475,7 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Generate toe box"
+    bl_options = {'UNDO'}
 
     @ classmethod
     def poll(cls, context):
@@ -556,6 +586,7 @@ classes = (
     ORTHOPEN_OT_generate_toe_box,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_leg_prosthesis_generate,
+    ORTHOPEN_OT_leg_prosthesis_edit,
     ORTHOPEN_OT_permanent_modifiers,
     ORTHOPEN_OT_set_foot_pivot,
 )
