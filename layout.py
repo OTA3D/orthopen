@@ -54,6 +54,9 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
         layout.use_property_split = True
         layout.use_property_decorate = True
 
+        row = layout.row()
+        row.scale_y = 1.0
+        row.operator(operators.ORTHOPEN_OT_model_transform_all.bl_idname)
         layout.label(text="Adjust foot angle")
         row = layout.row()
         row.scale_y = 1.0
@@ -66,11 +69,18 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
         row = layout.row()
         row.scale_y = 1.0
         row.operator(operators.ORTHOPEN_OT_leg_prosthesis_generate.bl_idname)
+        #row = layout.row()
+        #row.scale_y = 1.0
+        #row.operator(operators.ORTHOPEN_OT_leg_prosthesis_test.bl_idname)
 
         layout.label(text="Foot splint")
         row = layout.row()
         row.scale_y = 1.0
         row.operator(operators.ORTHOPEN_OT_generate_toe_box.bl_idname)
+
+        row = layout.row()
+        row.scale_y = 1.0
+        row.operator(operators.ORTHOPEN_OT_generate_foot_splint.bl_idname)
 
 
 class TAB_PT_help(bpy.types.Panel, PanelDefaults):

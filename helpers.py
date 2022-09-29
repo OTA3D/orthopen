@@ -2,6 +2,7 @@
 Functions that were needed but couldn't be found in Blender or numpy.
 It is a bit awkward to install packages in Blender, so we avoid that.
 """
+from cmath import pi
 from collections import namedtuple
 import math
 from pathlib import Path
@@ -34,7 +35,6 @@ def mangle_operator_name(class_name: str):
         return class_name_list[0].lower() + "." + (class_name.split("OT_"))[-1].lower()
     else:
         raise ValueError("Only use this for operators, all other 'bl_idname' fields are set automatically")
-
 
 def mouse_ray_cast(context: bpy.types.Context, mouse_coords: tuple, ignore: list = []):
     """
@@ -87,7 +87,7 @@ def mouse_ray_cast(context: bpy.types.Context, mouse_coords: tuple, ignore: list
 
     return best_obj_data
 
-
+# TODO: Is this necessary?
 def set_view_to_xz():
     """
     Rotate viewport to show the X-Z plane (front orthographic), and set view to current object
@@ -105,7 +105,6 @@ def set_view_to_xz():
             override['area'] = area
             bpy.ops.view3d.view_axis(override, type='FRONT')
 
-
 def object_size(object: bpy.types.Object):
     """
     Calculate the size of an object.
@@ -122,7 +121,6 @@ def object_size(object: bpy.types.Object):
 
     # The bounding box has to be scaled
     return diff * np.array(object.scale)
-
 
 def load_assets(filename: str, names: list) -> dict:
     """
@@ -147,11 +145,15 @@ def load_assets(filename: str, names: list) -> dict:
     # Link objects to scene and save a reference
     assets = dict()
     for obj in data_to.objects:
-        # Blender might already have renamed my_asset --> my_asset_001 etc, due to duplicates so we
-        # cannot identify the assets by name directly
+        asset_key = obj.name
+        # If this is a "sought object", override asset name
         for original_name in names:
+            # Blender might already have renamed my_asset --> my_asset_001 etc, due to duplicates so we
+            # cannot identify the assets names by ==
             if original_name in obj.name:
-                assets[original_name] = obj
+                asset_key = original_name
+        assets[asset_key] = obj
+
         bpy.context.scene.collection.objects.link(obj)
 
     # Make sure we got it all
@@ -159,7 +161,6 @@ def load_assets(filename: str, names: list) -> dict:
     assert len(missing_assets) == 0, f"Sought assets '{missing_assets}' not found in '{FILE_PATH}'"
 
     return assets
-
 
 def bound_box_world(object: bpy.types.Object):
     """
@@ -177,3 +178,15 @@ def bound_box_world(object: bpy.types.Object):
 
     # For order of multiplication, remember (A * B)^T = B^T * A^T
     return (bound_box_augmented @ np.array(object.matrix_world).T)[:, :3]
+
+def delta_size(object: bpy.types.Object):
+    """
+    Get the delta size after adjusting the size of the object. Displays in info panel
+
+    Args:
+        object (bpy.types.Object): Blender object
+
+    Returns:
+        np.array: Corners of bounding box in world coordinates
+    """
+    return 
