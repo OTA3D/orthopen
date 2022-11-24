@@ -56,7 +56,11 @@ class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
 
         row = layout.row()
         row.scale_y = 1.0
+        row.operator(operators.ORTHOPEN_OT_leg_prosthesis_mirror.bl_idname)
+        row = layout.row()
+        row.scale_y = 1.0
         row.operator(operators.ORTHOPEN_OT_model_transform_all.bl_idname)
+
         layout.label(text="Adjust foot angle")
         row = layout.row()
         row.scale_y = 1.0

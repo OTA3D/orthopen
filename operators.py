@@ -67,7 +67,10 @@ class ORTHOPEN_OT_permanent_modifiers(bpy.types.Operator):
 
         for object in objects_to_permanent:
             # Overwrite the old mesh with the mesh from modifiers
-            object.data = bpy.data.meshes.new_from_object(object.evaluated_get(depedency_graph))
+            if object.type == 'MESH':
+                object.data = bpy.data.meshes.new_from_object(object.evaluated_get(depedency_graph))
+            
+            #TODO @ SIMON: Fix this function to get correct filtering of meshes
 
             # If we tagged the parent, is likely an foot adjustment armature that will not work after the
             # modifiers are cleared, and it will probably only be confusing to a user to keep it
@@ -80,6 +83,8 @@ class ORTHOPEN_OT_permanent_modifiers(bpy.types.Operator):
 
         # Set viewport shading back to solid
         bpy.context.space_data.shading.type = 'SOLID'
+
+        helpers.toggle_xray(False)
 
         self.report(
             {'INFO'},
@@ -171,8 +176,14 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
         # The user probably wants to adjust the foot angle now and that has to be done in pose mode
         bpy.ops.object.mode_set(mode='POSE')
 
-        # To easier visualize the armature the viewport shading is set to Wireframe
-        bpy.context.space_data.shading.type = 'WIREFRAME'
+        # To easier visualize the armature the viewport shading is set to SOLID and toggle X-ray
+        if bpy.context.space_data.shading.type != 'SOLID' : 
+            bpy.context.space_data.shading.type = 'SOLID'
+        
+        helpers.toggle_xray(True)
+
+        # TODO @ SIMON: Automate selection of armature and activate the rotation function
+        # when adding the flag for left or right leg also include the set view so the user gets the outside of the foot i.e. "helpers.set_view_to_xz()"
 
         return {'FINISHED'}
 
@@ -244,27 +255,31 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         name="Calf circumference (max)",
         description="The largest circumference around the calf",
         unit="LENGTH",
-        default=0.35)
+        default=0.35
+    )
 
     set_height: bpy.props.FloatProperty(
         name="Cosmetics total height",
         description="The extent of the cosmetics, "
         "from top to bottom",
         unit="LENGTH",
-        default=0.2)
+        default=0.2
+    )
 
     set_clip_position_z: bpy.props.FloatProperty(
         name="Clip start height",
         description="The center point of the fastening clip measured relative to"
         " the lowest point of the prosthesis cosmetics",
         unit="LENGTH",
-        default=0.1)
+        default=0.1
+    )
 
     use_interactive_placement: bpy.props.BoolProperty(
         name="Interactive clip placement",
         description="After clicking 'OK' below, click a point on the prosthesis tube where"
         " the fastening clip should be placed",
-        default=True)
+        default=True
+    )
 
     @ classmethod
     def poll(cls, context):
@@ -305,7 +320,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def _main(self, set_clamp_origin=None):
-        cosmetics_main, fastening_clip = self._import_from_assets_folder()
+        cosmetics_main, fastening_clip, = self._import_from_assets_folder()
 
         # The bounding box is defined in object coordinates, and defines the mesh size with no scale applied
         cosmetics_main_mesh_size = np.amax(np.array(cosmetics_main.bound_box), axis=0) - \
@@ -334,7 +349,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         # By setting scale and position directly in matrix_world "automically" there is less risk of
         # any of these properties getting lost between Blenders internal update cycles
         mat = np.eye(4)
-        mat[:3, :3] = np.diag(cosmetics_main_target_scale)
+        #mat[:3, :3] = np.diag(cosmetics_main_target_scale)
         mat[:3, 3] = cosmetics_main_translation
         cosmetics_main.matrix_world = mathutils.Matrix(list(mat))
 
@@ -373,7 +388,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         return np.mean(selected_vertices, axis=0)
 
     def _import_from_assets_folder(self):
-        assets = helpers.load_assets(filename="leg_prosthesis.blend", names=["clip", "cosmetics_main"])
+        assets = helpers.load_assets(filename="cosmetics_deformed.blend", names=["clip", "cosmetics_main"])
 
         # In following code, it is assumed that these objects are not rotated
         def not_rotated(object): return np.linalg.norm(np.array(object.matrix_world.to_quaternion()) -
@@ -382,6 +397,24 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
             assets["clip"]), "Parts in '{FILE_PATH}' must not be rotated prior to import"
 
         return assets["cosmetics_main"], assets["clip"]
+
+class ORTHOPEN_OT_leg_prosthesis_mirror(bpy.types.Operator):
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Mirror 3D-model"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @ classmethod
+    def poll(cls, context):
+        try:
+            return len(bpy.context.selected_objects) == 1
+        except AttributeError:
+            return False
+
+    def execute(self, context):
+        
+        bpy.ops.transform.mirror(orient_type='GLOBAL', constraint_axis=(False, True, False)) # orient_matrix=((1, 0, 0), (0, 1, 0), (0, 0, 1)), orient_matrix_type='GLOBAL',
+
+        return {'FINISHED'}
 
 class ORTHOPEN_OT_leg_prosthesis_test(bpy.types.Operator):
     bl_idname = helpers.mangle_operator_name(__qualname__)
@@ -420,7 +453,7 @@ class ORTHOPEN_OT_leg_prosthesis_test(bpy.types.Operator):
 
 class ORTHOPEN_OT_model_transform_all(bpy.types.Operator):
     bl_idname = helpers.mangle_operator_name(__qualname__)
-    bl_label = "Transform all"
+    bl_label = "Transform all (Meshes)"
     bl_options = {'REGISTER', 'UNDO'}
 
     @ classmethod
@@ -432,11 +465,15 @@ class ORTHOPEN_OT_model_transform_all(bpy.types.Operator):
         except AttributeError:
             return False
 
-    def execute(self, context):
-        bpy.ops.object.select_all(action="SELECT")
-        bpy.ops.object.transform_apply(
-            location=False, rotation=True, scale=False)
-        bpy.ops.object.select_all(action="DESELECT")
+    def execute(self, context):    
+        # Transform all function for MESH objects 
+        for obj in bpy.context.scene.objects:
+            if obj.type == 'MESH':
+                matrix = obj.matrix_world.copy()
+                for vert in obj.data.vertices:
+                    vert.co = matrix @ vert.co
+                obj.matrix_world.identity()
+
         return {'FINISHED'}
 
 class ORTHOPEN_OT_generate_pad(bpy.types.Operator):
@@ -532,7 +569,7 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
 
         # The toes point in the x direction, so we find the toes by selecting all vertices
         # a bit behind the largest x coordinate
-        sel_range_x_to_get_toes_only = foot_length_x * 0.35
+        sel_range_x_to_get_toes_only = foot_length_x * 0.22
         toe_sel = all_vertices[:, 0] > (np.amax(all_vertices[:, 0]) - sel_range_x_to_get_toes_only)
         toe_vertices = all_vertices[toe_sel, :]
         toe_size = np.amax(toe_vertices, axis=0) - np.amin(toe_vertices, axis=0)
@@ -557,7 +594,7 @@ class ORTHOPEN_OT_generate_toe_box(bpy.types.Operator):
         mat[:, 3] = target_position
         toe_box.matrix_world = mathutils.Matrix(list(mat))
 
-        # This will make the pad wrap to surfaces
+        # This will make the toe box wrap to surfaces
         for modifier in toe_box.modifiers:
             if modifier.type == "SHRINKWRAP":
                 modifier.target = leg
@@ -610,6 +647,13 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
         bpy.ops.import_mesh.stl(filepath=self.filepath)
         print(f"Importing '{self.filepath}'")
 
+        # TODO @SIMON: when multiple body parts are included - create separation of template depending on leg/arm/hand etc.
+
+        # If the foot reference is already imported. Do not import a duplicate.
+        if not "Foot_ref" in bpy.data.objects:
+            self.foot_template = helpers.load_assets(filename="foot_ref293.blend", names=["Foot_ref"])
+            bpy.data.objects["Foot_ref"].hide_select = True
+
         # Keep track of what objects we have imported
         imported_objects = set(context.scene.objects) - old_objects
         for object in imported_objects:
@@ -618,7 +662,8 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
         # Change to Viewport Shading to SOLID
         if bpy.context.space_data.shading.type != 'SOLID':
             bpy.context.space_data.shading.type = 'SOLID'
-        # TODO: Rotate the leg
+
+        # TODO @SIMON: Try to find a way to automatically rotate the leg
         #helpers.object_size(object)
         #helpers.set_view_to_xz()
         return {'FINISHED'}
@@ -629,7 +674,8 @@ classes = (
     ORTHOPEN_OT_generate_toe_box,
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_leg_prosthesis_generate,
-    ORTHOPEN_OT_leg_prosthesis_test,
+    ORTHOPEN_OT_leg_prosthesis_mirror,
+    #ORTHOPEN_OT_leg_prosthesis_test,
     ORTHOPEN_OT_model_transform_all,
     ORTHOPEN_OT_permanent_modifiers,
     ORTHOPEN_OT_set_foot_pivot,

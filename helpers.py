@@ -87,7 +87,6 @@ def mouse_ray_cast(context: bpy.types.Context, mouse_coords: tuple, ignore: list
 
     return best_obj_data
 
-# TODO: Is this necessary?
 def set_view_to_xz():
     """
     Rotate viewport to show the X-Z plane (front orthographic), and set view to current object
@@ -189,4 +188,23 @@ def delta_size(object: bpy.types.Object):
     Returns:
         np.array: Corners of bounding box in world coordinates
     """
+    return 
+
+def toggle_xray(toggle: bool):
+    """
+    Used in order to improve visuals during functions. Can be toggled ON(True)/OFF(False). 
+
+    Args:
+        toggle (bool): True / False
+
+    Returns:
+        none
+    """
+
+    view3D = [area for area in bpy.context.screen.areas if area.type == 'VIEW_3D']
+    for area in view3D:
+        shading = area.spaces.active.shading
+    
+    shading.show_xray = toggle
+
     return 
