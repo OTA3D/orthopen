@@ -46,8 +46,24 @@ the leg in the z-direction.
 Also, the leg should be its natural size, i.e. not enlarged to something very small or large. The scan in the screenshot
 below has a height of around 0.5 meters. 
 
-### Correcting alignment
-If the imported scan is not aligned as specified above, rotate it to its proper alignment. Then, apply the transform by *Object->Apply->All transforms*. An example 
+## Correcting alignment
+If the imported scan is not aligned as specified above. When a leg is imported a sole is shown in order to guide the user to adjust the object into the correct position. Once the object is in the correct place click the "Transform All" button
 of this is demontrated in the animation below.
 
 ![How to correct leg alignment](orientation_leg.gif)
+
+# Menu
+Below is a walk through of each function in OrthOpen.
+
+## Common controls
+
+### Import 3D scan
+Opens a dialog for importing 3D scans. Use this instead of Blenders own import function.
+
+### Generate pad
+Interactively generate a pad that sticks to surfaces. Hover the object where it should be centered and click left mouse button. Can be used to  ensure clearance between an ankle and a foot splint.
+
+## Foot and leg
+
+### Mirror 3D-model
+Shortcut button to mirrors the selected object along the Y-axis. In case a left leg has been imported but right leg needs a cosmetic/orthosis.

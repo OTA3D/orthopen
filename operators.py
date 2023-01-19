@@ -401,7 +401,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 class ORTHOPEN_OT_leg_prosthesis_mirror(bpy.types.Operator):
     """
     Shortcut button to mirrors the selected object along the Y-axis.
-    I.e a left leg has been imported but right leg needs a cosmetic/orthosis.
+    E.g. a left leg has been imported but right leg needs a cosmetic/orthosis.
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Mirror 3D-model"
