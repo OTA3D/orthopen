@@ -1,3 +1,4 @@
+# OrthOpen user guide
 OrthOpen is a free, open source add-on in Blender for facilitating the design of orthopedic aids such as orthoses.  Our
 goal is to make it easier, faster and more cost-efficient (Blender is free) for orthopedic specialists worldwide to help
 their patients. Our current design focus is handling 3D scans of patients and designing orthoses that can be manufactured by
@@ -65,6 +66,7 @@ Interactively generate a pad that sticks to surfaces. Hover the object where it 
 ## Foot and leg
 ### Mirror 3D-model
 Shortcut button to mirrors the selected object along the Y-axis. In case a left leg has been imported but right leg needs a cosmetic/orthosis.
+
 ![Example of mirror 3D model](mirror_3D-model_demo.gif)
 
 ### Transform all (Meshes)
@@ -74,13 +76,15 @@ Same as the menu option: Object -> Apply -> All Transform.
 ## Adjust foot angle
 ### Adjust foot angle
 Click on the ankle. Then rotate the foot by moving the visible handle (armature) that is added to the foot.
-![Example of foot angle rotation](rotation_demo.gif.gif)
+
+![Example of foot angle rotation](rotation_demo.gif)
 
 ### Apply changes
 Permanently apply modifiers (e.g. changed foot angle) to the selected object. Will try to automtically find relevant objects if no object is selected.
 
 ## Prosthesis cosmetics
 Generate a proposal for leg prosthesis cosmetics. Has additional options in the sub-menu which will be shown once this button is clicked.
+
 ![Cosmetic sub menu](generate_cosmetic_menu.png)
 - Calf circumference (max): Adjusts the cosmetic to the given circumference around the calf.
 - Cosmetics total height: The height of the cosmetic.
@@ -88,15 +92,18 @@ Generate a proposal for leg prosthesis cosmetics. Has additional options in the 
 - Interactive clip placement: With this option active the user will be asked to interactively place where the cosmetic should be located.
 
 Once the cosmetic is placed it can be adjusted by moving the dots in the lattice(wireframe). This can be done in both groups of dots or with individual dots as shown below:
+
 ![Adjusting cosmetic](adjust_cosmetic.gif)
 
 ## Foot splint
 ### Generate toe box
 Generate a box around the toes. Used to ensure clearence between toes and the foot splint. Selecting a leg or a foot first is required.
+
 ![Toe box example](toe-box.png)
 
 ## Generate foot splint
 Generate a foot splint. Beta version that just import a 3D model to the scene.
+
 ![Foot splint example](foot-splint.png)
 
 ## Help
