@@ -27,27 +27,27 @@ will take you to a page that looks similar to below. Download the file as indica
 The add-on is installed in Blender like any other zip file add-on. Follow for instance [this tutorial](https://www.youtube.com/watch?v=LzdoUTvAgXk&ab_channel=TheCGEssentials) 
  on how to install an add-on in Blender.
 
+# General usage
+Our goal is to provide most of the needed support via tooltips. You see tooltips by hovering the various functions in the add-on menu. Is it enough to only explain 
+these features via tooltips or should we write something more in this guide? Let us know by providing us infomation in a [GitHub issue](https://github.com/OTA3D/orthopen/issues) 
+
 ## Locating OrthOpen
 With the add-on installed, press *N* in viewport. You should now see the main menu of Orthopen pop-up to the right.
 
 ![How to open the plugin](show_menu.gif)
 
-# General usage
-Our goal is to provide most of the needed support via tooltips. You see tooltips by hovering the various functions in the add-on menu. Is it enough to only explain 
-these features via tooltips or should we write something more in this guide? Let us know by providing us infomation in a [GitHub issue](https://github.com/OTA3D/orthopen/issues) 
-
 ## Proper alignment
 Currently, most features are designed for operating on a 3D scan of a leg. It is very important that the leg is aligned correctly before starting.
 Location and rotation should all be 0, and scale should be 1. At these conditions, the toes should point in the x-direction and 
-the leg in the z-direction. 
+the leg in the z-direction.
 
 ![The leg must be aligned like this](coordinates_leg.png)
 
 Also, the leg should be its natural size, i.e. not enlarged to something very small or large. The scan in the screenshot
-below has a height of around 0.3 meters. 
+below has a height of around 0.5 meters. 
 
 ### Correcting alignment
 If the imported scan is not aligned as specified above, rotate it to its proper alignment. Then, apply the transform by *Object->Apply->All transforms*. An example 
 of this is demontrated in the animation below.
 
-![How to correct leg alignment](correct_leg.gif)
+![How to correct leg alignment](orientation_leg.gif)

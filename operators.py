@@ -336,7 +336,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         if set_clamp_origin is None:
             set_clamp_origin = np.array(fastening_clip.matrix_world.translation)
-        fastening_clip.matrix_world.translation = mathutils.Vector(list(set_clamp_origin))
+        #fastening_clip.matrix_world.translation = mathutils.Vector(list(set_clamp_origin))
 
         # This is true if the body is not rotated, and no modifiers are applied
         cosmetics_main_origin_to_z_min = (np.amin(np.array(cosmetics_main.bound_box), axis=0))[2]\
@@ -349,7 +349,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         # By setting scale and position directly in matrix_world "automically" there is less risk of
         # any of these properties getting lost between Blenders internal update cycles
         mat = np.eye(4)
-        #mat[:3, :3] = np.diag(cosmetics_main_target_scale)
+        mat[:3, :3] = np.diag(cosmetics_main_target_scale)
         mat[:3, 3] = cosmetics_main_translation
         cosmetics_main.matrix_world = mathutils.Matrix(list(mat))
 
@@ -399,6 +399,10 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         return assets["cosmetics_main"], assets["clip"]
 
 class ORTHOPEN_OT_leg_prosthesis_mirror(bpy.types.Operator):
+    """
+    Shortcut button to mirrors the selected object along the Y-axis.
+    I.e a left leg has been imported but right leg needs a cosmetic/orthosis.
+    """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Mirror 3D-model"
     bl_options = {'REGISTER', 'UNDO'}
@@ -416,6 +420,7 @@ class ORTHOPEN_OT_leg_prosthesis_mirror(bpy.types.Operator):
 
         return {'FINISHED'}
 
+# A function added in order to automatically align the imported object according to XYZ in order to function with the rest of the functions.
 class ORTHOPEN_OT_leg_prosthesis_test(bpy.types.Operator):
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Test function" # NOT IN PRODUCTION
@@ -452,6 +457,11 @@ class ORTHOPEN_OT_leg_prosthesis_test(bpy.types.Operator):
         return {'FINISHED'}
 
 class ORTHOPEN_OT_model_transform_all(bpy.types.Operator):
+    """
+    Shortcut button for transform all meshes.
+    Should be done once the imported object are in the correct place.
+    (Object -> Apply -> All Transform)
+    """
     bl_idname = helpers.mangle_operator_name(__qualname__)
     bl_label = "Transform all (Meshes)"
     bl_options = {'REGISTER', 'UNDO'}
@@ -628,6 +638,13 @@ class ORTHOPEN_OT_generate_foot_splint(bpy.types.Operator):
             object.hide_viewport = False if key == "foot_splint" else True
             bpy.context.scene.collection.objects.unlink(object)
             foot_splint_collection.objects.link(object)
+
+        # TODO: Associate and replace the MALE_Leg_SCAN so that the imported foot splint will be shaped according to the imported/scanned leg/foot.
+            # 1) Make a copy(REF) of the imported object
+            # 2) Change the view setting to bounds from textures so that it is hidden
+            # 3) Add a modifier: solidify on the REF with -0.01m (1mm)
+            # 4) Add and set shrinkwrap target to REF
+            # 5) Both REF and orthosis to have a constrain (Child of) to original object
 
         return {'FINISHED'}
 
