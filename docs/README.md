@@ -56,7 +56,6 @@ of this is demontrated in the animation below.
 Below is a walk through of each function in OrthOpen.
 
 ## Common controls
-
 ### Import 3D scan
 Opens a dialog for importing 3D scans. Use this instead of Blenders own import function.
 
@@ -64,6 +63,38 @@ Opens a dialog for importing 3D scans. Use this instead of Blenders own import f
 Interactively generate a pad that sticks to surfaces. Hover the object where it should be centered and click left mouse button. Can be used to  ensure clearance between an ankle and a foot splint.
 
 ## Foot and leg
-
 ### Mirror 3D-model
 Shortcut button to mirrors the selected object along the Y-axis. In case a left leg has been imported but right leg needs a cosmetic/orthosis.
+
+### Transform all (Meshes)
+Shortcut button for transform all meshes. Should be used once the imported object are in the correct place.
+Same as the menu option: Object -> Apply -> All Transform.
+
+## Adjust foot angl
+### Adjust foot angle
+Click on the ankle. Then rotate the foot by moving the visible handle (armature) that is added to the foot.
+
+### Apply changes
+Permanently apply modifiers (e.g. changed foot angle) to the selected object. Will try to automtically find relevant objects if no object is selected.
+
+## Prosthesis cosmetics
+Generate a proposal for leg prosthesis cosmetics. Has additional options in the sub-menu which will be shown once this button is clicked.
+![Cosmetic sub menu](generate_cosmetic_menu.png)
+- Calf circumference (max): Adjusts the cosmetic to the given circumference around the calf.
+- Cosmetics total height: The height of the cosmetic.
+- Clip start height: The center point of the fastening clip measured relative to the lowest point of the cosmetic.
+- Interactive clip placement: With this option active the user will be asked to interactively place where the cosmetic should be located.
+
+## Foot splint
+### Generate toe box
+Generate a box around the toes. Used to ensure clearence between toes and the foot splint. Selecting a leg or a foot first is required.
+
+## Generate foot splint
+Generate a foot splint. Beta version that just import a 3D model to the scene.
+
+## Help
+### Report an issue
+Link to the Git repository web page where issues shall be reported.
+
+### User guide
+Link to the user guide web page.

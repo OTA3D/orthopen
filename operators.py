@@ -459,7 +459,7 @@ class ORTHOPEN_OT_leg_prosthesis_test(bpy.types.Operator):
 class ORTHOPEN_OT_model_transform_all(bpy.types.Operator):
     """
     Shortcut button for transform all meshes.
-    Should be done once the imported object are in the correct place.
+    Should be used once the imported object are in the correct place.
     (Object -> Apply -> All Transform)
     """
     bl_idname = helpers.mangle_operator_name(__qualname__)
