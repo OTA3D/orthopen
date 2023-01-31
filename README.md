@@ -17,7 +17,7 @@ There should be an instruction for how get started in the in the link.
 
 ### Other material
 Guides that might be useful when getting started developing a Blender add-on. 
-[Create Simple Blender Addon in 15Minutes](https://www.youtube.com/watch?v=Y67eCfiqJQU) 
+[Create Simple Blender Addon in 15 Minutes](https://www.youtube.com/watch?v=Y67eCfiqJQU) 
 [Setup vscode for blender](https://www.youtube.com/watch?v=bmpKAluHiEc)
 
 ### Tips 
@@ -41,6 +41,3 @@ partly conflict those of PEP8. In case of a conflict Blender conventions take pr
 The user of this plugin is assumed to be a novice at Blender. The goal is that the user only should have to be able to
 navigate the viewport and do basic operations on objects such and move and scale. Everything else should be possible to
 do using high level functions provided by the add-on.
-
-## Contact
-For technical matters contact Martin Pär-Love Palm, parlove@paxec.se
