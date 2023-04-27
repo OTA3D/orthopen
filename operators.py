@@ -88,7 +88,7 @@ class ORTHOPEN_OT_permanent_modifiers(bpy.types.Operator):
 
         self.report(
             {'INFO'},
-            f"Permanently applied modifiers to '{','.join([o.name for o in objects_to_permanent])}'")
+            f"Permanently applied modifiers to '{', '.join([o.name for o in objects_to_permanent])}'")
 
         return {'FINISHED'}
 
@@ -214,11 +214,20 @@ class ORTHOPEN_OT_set_foot_pivot(bpy.types.Operator):
         """
         The armature is what enables us to rotate the foot around the ankle.
         """
-        leg_name = bpy.context.active_object.name
+        obj = bpy.context.active_object
+        leg_name = obj.name
+        """ all_vertices = np.array([(v.co.x, v.co.y, v.co.z) for v in obj.data.vertices])
+        imported_model_y = np.amax(all_vertices[:, 1]) - np.amin(all_vertices[:, 1])
 
+        y_coords = [vertex.co.y for vertex in obj.data.vertices if vertex.co.y == ankle_point.z]
+        y_mid = max(y_coords) - min(y_coords)
+        print(y_mid) 
+
+        # Assumes that the smallest value in array is the width of the foot
+        foot_width = imported_model_y"""
+        
         # Place the armature in the middle of the joint
-        LEG_THICKNESS = 0.08
-        position = mathutils.Vector((ankle_point.x, ankle_point.y + LEG_THICKNESS / 2, ankle_point.z))
+        position = mathutils.Vector((ankle_point.x, 0, ankle_point.z)) 
 
         # Add a bone to the foot, keep track that this is something auto-generated
         old_objects = set(bpy.data.objects)
@@ -367,6 +376,8 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         if ray.intersection_point is None:
             return None
+        
+        print(ray.intersection_point)
 
         # Convert from object to world coordinates
         intersection_world = ray.object.matrix_world @ ray.intersection_point

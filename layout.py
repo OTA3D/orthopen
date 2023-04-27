@@ -21,7 +21,6 @@ class PanelDefaults:
         """
         return True
 
-
 class COMMON_PT_panel(bpy.types.Panel, PanelDefaults):
     """
     Controls shown on top of UI that are always visible
