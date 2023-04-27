@@ -44,6 +44,20 @@ class COMMON_PT_panel(bpy.types.Panel, PanelDefaults):
         row.scale_y = 1
         row.operator(operators.ORTHOPEN_OT_generate_pad.bl_idname)
 
+        # MeasureIt button
+        scene = context.scene
+        box = layout.box()
+        row = box.row()
+        if context.window_manager.measureit_run_opengl is False:
+            icon = 'PLAY'
+            txt = 'Show measurements'
+        else:
+            icon = "PAUSE"
+            txt = 'Hide measurements'
+
+        row.operator("measureit.runopengl", text=txt, icon=icon)
+        row.prop(scene, "measureit_gl_ghost", text="", icon='GHOST_ENABLED')
+
 
 class TAB_PT_foot_leg(bpy.types.Panel, PanelDefaults):
     bl_label = "Foot and leg"

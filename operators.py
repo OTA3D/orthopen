@@ -691,9 +691,9 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
         if bpy.context.space_data.shading.type != 'SOLID':
             bpy.context.space_data.shading.type = 'SOLID'
 
-        # TODO @SIMON: Try to find a way to automatically rotate the leg
-        #helpers.object_size(object)
-        #helpers.set_view_to_xz()
+        # Check whether measureit is available/enabled, if not, install measureit
+        helpers.import_activate_measureit()
+
         return {'FINISHED'}
 
 classes = (
