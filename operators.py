@@ -10,6 +10,8 @@ import numpy as np
 
 from . import helpers
 
+cosmetic_is_placed = False
+
 # If a bpy.types.Object contains this key, we know it is a scan we imported
 _KEY_IMPORTED_SCAN = "imported_3d_scan"
 
@@ -311,6 +313,15 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
+    def draw(self, context):
+        row = self.layout
+        row.prop(self, "set_max_circumference", text="Calf circumference (max)")
+        row.prop(self, "set_height", text="Cosmetics total height")
+        row.prop(self, "set_clip_position_z", text="Clip start height")
+        # If the foot reference is already imported. Do not import a duplicate.
+        if not "cosmetics_main" in bpy.data.objects:
+            row.prop(self, "use_interactive_placement", text="Interactive clip placement")
+
     def modal(self, context, event):
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # Allow navigation
@@ -321,11 +332,15 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
                 self.report(
                     {'INFO'},
                     "Could not find a tube for the fastening clamp. Will place prosthesis at default location.")
+            
+            self.use_interactive_placement = False
             self._main(clamp_origin)
+            
             return {'FINISHED'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             return {'CANCELLED'}
 
+        self.show_interactive_option = False
         return {'RUNNING_MODAL'}
 
     def _main(self, set_clamp_origin=None):
@@ -340,7 +355,7 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         x_y_target_size = self.set_max_circumference / np.pi
 
         # The calf is a half circle along the X-axis, so half that measurement
-        cosmetics_main_target_scale = np.array([x_y_target_size / 2, x_y_target_size, self.set_height])\
+        cosmetics_main_target_scale = np.array([x_y_target_size, x_y_target_size, self.set_height])\
             / cosmetics_main_mesh_size
 
         if set_clamp_origin is None:
@@ -358,14 +373,14 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         # By setting scale and position directly in matrix_world "automically" there is less risk of
         # any of these properties getting lost between Blenders internal update cycles
         mat = np.eye(4)
-        mat[:3, :3] = np.diag(cosmetics_main_target_scale)
+        mat[:3, :3] = np.diag(cosmetics_main_target_scale) 
         mat[:3, 3] = cosmetics_main_translation
         cosmetics_main.matrix_world = mathutils.Matrix(list(mat))
 
         # UI updates
         bpy.ops.object.select_all(action="DESELECT")
         cosmetics_main.select_set(True)
-        helpers.set_view_to_xz()
+        #helpers.set_view_to_xz()
 
     def _determine_clamp_origin(self, mouse_coords):
         """
@@ -376,8 +391,6 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         if ray.intersection_point is None:
             return None
-        
-        print(ray.intersection_point)
 
         # Convert from object to world coordinates
         intersection_world = ray.object.matrix_world @ ray.intersection_point
@@ -638,24 +651,10 @@ class ORTHOPEN_OT_generate_foot_splint(bpy.types.Operator):
             return False
 
     def invoke(self, context, event):
-        assets = helpers.load_assets(filename="foot_splint.blend", names=["foot_splint"])
-
-        # TODO(parlove@paxec.se): All the below stuff is here to restore collection
-        # strucuture, becuase the import function does not yet respect this
-        foot_splint_collection = bpy.data.collections.new("foot_splint_coll")
-        bpy.context.scene.collection.children.link(foot_splint_collection)
-        for key, object in assets.items():
-            # Hide all but the main foot splint part
-            object.hide_viewport = False if key == "foot_splint" else True
-            bpy.context.scene.collection.objects.unlink(object)
-            foot_splint_collection.objects.link(object)
-
-        # TODO: Associate and replace the MALE_Leg_SCAN so that the imported foot splint will be shaped according to the imported/scanned leg/foot.
-            # 1) Make a copy(REF) of the imported object
-            # 2) Change the view setting to bounds from textures so that it is hidden
-            # 3) Add a modifier: solidify on the REF with -0.01m (1mm)
-            # 4) Add and set shrinkwrap target to REF
-            # 5) Both REF and orthosis to have a constrain (Child of) to original object
+        if (3, 0, 0) < bpy.app.version:
+            assets = helpers.load_assets(filename="foot_splint_base_geo.blend", names=["Orthos_Base"])
+        else:
+            assets = helpers.load_assets(filename="foot_splint_base.blend", names=["Orthos_Base"])
 
         return {'FINISHED'}
 
@@ -692,10 +691,48 @@ class ORTHOPEN_OT_import_file(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
             bpy.context.space_data.shading.type = 'SOLID'
 
         # Check whether measureit is available/enabled, if not, install measureit
-        helpers.import_activate_measureit()
+        # helpers.import_activate_measureit()
 
         return {'FINISHED'}
 
+class ORTHOPEN_OT_asset_library(bpy.types.Operator):
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Add object to asset library"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @ classmethod
+    def poll(cls, context):
+        try:
+            return len(bpy.context.selected_objects) == 1
+        except AttributeError:
+            return False
+        
+    def execute(self, context):
+        leg = context.active_object
+      
+        bpy.ops.asset.mark()
+
+        # TODO: Create a prompt to request user to assign a source folder
+        #       When object is added to asset library -> make sure it is saved to user library
+        #       Set default view 
+
+        return {'FINISHED'}
+
+class ORTHOPEN_OT_asset_folders(bpy.types.Operator):
+    bl_idname = helpers.mangle_operator_name(__qualname__)
+    bl_label = "Add catalogues" # NOT IN PRODUCTION
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        """current_library_name = context.area.spaces.active.params.asset_library_ref
+            if current_library_name == "LOCAL":  # Current file
+            library_path = Path(bpy.data.filepath)  # Will be "." if file has never been saved
+        else:
+            library_path = Path(context.preferences.filepaths.asset_libraries.get(current_library_name).path) """
+        bpy.ops.asset.catalog_new(Path(bpy.data.filepath).parent)
+
+        return {'FINISHED'}
+    
 classes = (
     ORTHOPEN_OT_generate_foot_splint,
     ORTHOPEN_OT_generate_pad,
@@ -703,12 +740,30 @@ classes = (
     ORTHOPEN_OT_import_file,
     ORTHOPEN_OT_leg_prosthesis_generate,
     ORTHOPEN_OT_leg_prosthesis_mirror,
+    ORTHOPEN_OT_model_transform_all,
+    ORTHOPEN_OT_permanent_modifiers,
+    ORTHOPEN_OT_set_foot_pivot,
+)
+
+classes_3X = (
+    ORTHOPEN_OT_generate_foot_splint,
+    ORTHOPEN_OT_generate_pad,
+    ORTHOPEN_OT_generate_toe_box,
+    ORTHOPEN_OT_import_file,
+    ORTHOPEN_OT_leg_prosthesis_generate,
+    ORTHOPEN_OT_leg_prosthesis_mirror,
+    ORTHOPEN_OT_asset_library,
+    #ORTHOPEN_OT_asset_folders,
     #ORTHOPEN_OT_leg_prosthesis_test,
     ORTHOPEN_OT_model_transform_all,
     ORTHOPEN_OT_permanent_modifiers,
     ORTHOPEN_OT_set_foot_pivot,
 )
-register, unregister = bpy.utils.register_classes_factory(classes)
+
+if (3, 0, 0) < bpy.app.version:
+    register, unregister = bpy.utils.register_classes_factory(classes_3X)
+else:
+    register, unregister = bpy.utils.register_classes_factory(classes)
 
 
 if __name__ == "__main__":
