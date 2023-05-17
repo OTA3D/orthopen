@@ -11,6 +11,7 @@ import bpy
 from bpy_extras import view3d_utils
 import mathutils
 import numpy as np
+from addon_utils import check, enable
 
 
 def mangle_operator_name(class_name: str):
@@ -208,3 +209,14 @@ def toggle_xray(toggle: bool):
     shading.show_xray = toggle
 
     return 
+
+def import_activate_measureit():
+    """
+    Checks whether the MeasureIt addon is enabled. If not = enable
+    """
+    loaded_default, loaded_status = check("measureit")
+    
+    if not loaded_status:
+        bpy.ops.preferences.addon_enable(module="measureit")
+
+    return

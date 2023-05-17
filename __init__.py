@@ -1,7 +1,7 @@
 bl_info = {
     "name": "OrthOpen",
     "author": "",
-    "version": (0, 4),
+    "version": (0, 4.1),
     "blender": (2, 93, 0),
     "location": "View3D->Sidebar",
     "description": "Tools for facilitating the design of orthopaedic aids.",
