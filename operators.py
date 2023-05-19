@@ -10,8 +10,6 @@ import numpy as np
 
 from . import helpers
 
-cosmetic_is_placed = False
-
 # If a bpy.types.Object contains this key, we know it is a scan we imported
 _KEY_IMPORTED_SCAN = "imported_3d_scan"
 
@@ -262,6 +260,8 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
     bl_label = "Generate cosmetics"
     bl_options = {'REGISTER', 'UNDO'}
 
+    _SAVED_LOCATION = None
+
     set_max_circumference: bpy.props.FloatProperty(
         name="Calf circumference (max)",
         description="The largest circumference around the calf",
@@ -318,33 +318,38 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         row.prop(self, "set_max_circumference", text="Calf circumference (max)")
         row.prop(self, "set_height", text="Cosmetics total height")
         row.prop(self, "set_clip_position_z", text="Clip start height")
-        # If the foot reference is already imported. Do not import a duplicate.
+        # Disable option in case a cosmetic is placed. Enables the adjustable pop-up window to work.
         if not "cosmetics_main" in bpy.data.objects:
             row.prop(self, "use_interactive_placement", text="Interactive clip placement")
 
     def modal(self, context, event):
+
         if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
             # Allow navigation
             return {'PASS_THROUGH'}
         elif event.type == 'LEFTMOUSE':
+            # Gather information from user where to place the cosmetic
             clamp_origin = self._determine_clamp_origin(mouse_coords=(event.mouse_region_x, event.mouse_region_y))
+
+            # Location is saved in order to keep it in place if properties are updated
+            self._SAVED_LOCATION = clamp_origin
+
+            # If no object is found, setting clamp_origin to None places the cosmetic in origo.
             if clamp_origin is None:
                 self.report(
                     {'INFO'},
                     "Could not find a tube for the fastening clamp. Will place prosthesis at default location.")
-            
-            self.use_interactive_placement = False
+
             self._main(clamp_origin)
             
             return {'FINISHED'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             return {'CANCELLED'}
 
-        self.show_interactive_option = False
         return {'RUNNING_MODAL'}
 
     def _main(self, set_clamp_origin=None):
-        cosmetics_main, fastening_clip, = self._import_from_assets_folder()
+        cosmetics_main, clip = self._import_from_assets_folder()
 
         # The bounding box is defined in object coordinates, and defines the mesh size with no scale applied
         cosmetics_main_mesh_size = np.amax(np.array(cosmetics_main.bound_box), axis=0) - \
@@ -357,10 +362,15 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
         # The calf is a half circle along the X-axis, so half that measurement
         cosmetics_main_target_scale = np.array([x_y_target_size, x_y_target_size, self.set_height])\
             / cosmetics_main_mesh_size
-
+        
+        # Places the cosmetic in origo if no mesh has been selected
         if set_clamp_origin is None:
-            set_clamp_origin = np.array(fastening_clip.matrix_world.translation)
-        #fastening_clip.matrix_world.translation = mathutils.Vector(list(set_clamp_origin))
+            set_clamp_origin = np.array(clip.matrix_world.translation)
+
+        # If a location has been selected for the cosmetic, keep it and enable editing of properties
+        if(self._SAVED_LOCATION is not None):
+            self.use_interactive_placement = False
+            set_clamp_origin = np.array(self._SAVED_LOCATION)
 
         # This is true if the body is not rotated, and no modifiers are applied
         cosmetics_main_origin_to_z_min = (np.amin(np.array(cosmetics_main.bound_box), axis=0))[2]\
@@ -391,11 +401,11 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         if ray.intersection_point is None:
             return None
-
+   
         # Convert from object to world coordinates
         intersection_world = ray.object.matrix_world @ ray.intersection_point
         vertices_world = np.array([[v.co.x, v.co.y, v.co.z, 1]
-                                   for v in ray.object.data.vertices]) @ np.array(list(ray.object.matrix_world)).T
+                                for v in ray.object.data.vertices]) @ np.array(list(ray.object.matrix_world)).T
 
         # Assume the prosthesis tube is perfectly cylindrical and parallel to the world Z-axis. Select
         # vertices symmetrically around the ray cast intersection.
@@ -405,11 +415,12 @@ class ORTHOPEN_OT_leg_prosthesis_generate(bpy.types.Operator):
 
         # Likely to happen for a tube created in blender, these have few vertices along their length per default
         MINIMUM_VERTICES_FOR_VALID_RESULT = 5
+        
         if selected_vertices.shape[0] < MINIMUM_VERTICES_FOR_VALID_RESULT:
             return None
-
+            
         # This should be the center point of a vertical tube section
-        return np.mean(selected_vertices, axis=0)
+        return np.mean(selected_vertices, axis=0) 
 
     def _import_from_assets_folder(self):
         assets = helpers.load_assets(filename="cosmetics_deformed.blend", names=["clip", "cosmetics_main"])
